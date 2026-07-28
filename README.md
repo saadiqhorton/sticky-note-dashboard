@@ -1,6 +1,8 @@
 # Stickyboard
 
-Open-source, self-hosted sticky-note dashboard for internal teams. One shared **Company Board**, one **Private Board** per person, cream paper UI, live presence planned.
+Open-source, self-hosted sticky-note dashboard for internal teams. One shared **Team Board**, one **Private Board** per person, cream paper UI, and real-time edit presence.
+
+![Stickyboard team board — IT help desk example](docs/images/stickyboard-preview.png)
 
 Design reference: [Figma — Sticky Note Dashboard](https://www.figma.com/design/JPBHDqVS3MlPJd6tNiZRhy)
 
