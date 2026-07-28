@@ -242,14 +242,14 @@ export function BoardCanvas({
         />
       ))}
 
-      <p className="pointer-events-none absolute bottom-6 left-6 text-sm font-medium text-ink-muted">
+      <p className="pointer-events-none absolute bottom-8 left-6 text-sm font-medium text-ink-muted">
         Drag to move · double-click to open · right-click note to delete
       </p>
 
       <button
         type="button"
         onClick={() => createNoteAt(160, 160)}
-        className="absolute bottom-6 right-6 rounded-full bg-ink px-5 py-3 text-sm font-semibold text-sticky-yellow sticky-shadow"
+        className="absolute bottom-8 right-8 rounded-full bg-ink px-5 py-3 text-sm font-semibold text-sticky-yellow sticky-shadow"
       >
         + New note
       </button>
