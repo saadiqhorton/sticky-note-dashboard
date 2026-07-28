@@ -1,0 +1,150 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  admin
+  member
+}
+
+enum BoardType {
+  company
+  private
+}
+
+enum StickyColor {
+  yellow
+  pink
+  blue
+  green
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  role          Role      @default(member)
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  sessions      Session[]
+  accounts      Account[]
+  privateBoard  Board?    @relation("BoardOwner")
+  createdNotes  Note[]    @relation("NoteCreator")
+  updatedNotes  Note[]    @relation("NoteUpdater")
+  invitesCreated Invite[] @relation("InviteCreator")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Invite {
+  id          String    @id @default(cuid())
+  token       String    @unique @default(cuid())
+  email       String?
+  createdById String
+  createdBy   User      @relation("InviteCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  expiresAt   DateTime
+  usedAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([createdById])
+}
+
+model Board {
+  id          String    @id @default(cuid())
+  type        BoardType
+  name        String
+  ownerUserId String?   @unique
+  owner       User?     @relation("BoardOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  notes       Note[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([type])
+}
+
+model Note {
+  id          String      @id @default(cuid())
+  boardId     String
+  board       Board       @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  title       String      @default("Untitled")
+  bodyJson    Json        @default("{}")
+  color       StickyColor @default(yellow)
+  x           Float       @default(120)
+  y           Float       @default(120)
+  width       Float       @default(220)
+  height      Float       @default(200)
+  zIndex      Int         @default(1)
+  rotation    Float       @default(0)
+  createdById String
+  createdBy   User        @relation("NoteCreator", fields: [createdById], references: [id])
+  updatedById String?
+  updatedBy   User?       @relation("NoteUpdater", fields: [updatedById], references: [id])
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  deletedAt   DateTime?
+  attachments Attachment[]
+
+  @@index([boardId])
+  @@index([deletedAt])
+}
+
+model Attachment {
+  id          String   @id @default(cuid())
+  noteId      String
+  note        Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  filename    String
+  mimeType    String
+  sizeBytes   Int
+  storagePath String
+  createdAt   DateTime @default(now())
+
+  @@index([noteId])
+}

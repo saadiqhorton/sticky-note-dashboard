@@ -1,0 +1,41 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: stickyboard
+      POSTGRES_PASSWORD: stickyboard
+      POSTGRES_DB: stickyboard
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stickyboard -d stickyboard"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://stickyboard:stickyboard@db:5432/stickyboard
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-change-me-to-a-long-random-string}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme123}
+      ADMIN_NAME: ${ADMIN_NAME:-Admin}
+      UPLOAD_DIR: /data/uploads
+    volumes:
+      - uploads_data:/data/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  uploads_data:
