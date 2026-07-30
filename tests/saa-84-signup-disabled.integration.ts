@@ -1,15 +1,14 @@
-import { spawn, type ChildProcess } from "node:child_process";
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { setTimeout as sleep } from "node:timers/promises";
 import { config as loadEnv } from "dotenv";
 import { PrismaClient } from "@prisma/client";
+import { auth } from "../src/lib/auth";
 
 loadEnv({ path: resolve(import.meta.dirname, "../.env") });
 
-const PORT = Number(process.env.TEST_PORT ?? "3456");
-const BASE_URL = `http://localhost:${PORT}`;
 const TEST_EMAIL = `saa84-blocked-${Date.now()}@example.com`;
+const ORIGIN =
+  process.env.BETTER_AUTH_URL ?? process.env.APP_URL ?? "http://localhost:3000";
 const EVIDENCE_PATH =
   process.env.SAA84_EVIDENCE_PATH ??
   "/opt/cursor/artifacts/saa-84-signup-disabled-evidence.txt";
@@ -25,49 +24,6 @@ type Evidence = {
   dbUserCreated: boolean;
   errors: string[];
 };
-
-async function waitForServer(url: string, maxAttempts = 90): Promise<void> {
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    try {
-      const response = await fetch(url, { redirect: "manual" });
-      if (response.status < 500) return;
-    } catch {
-      // Server not ready yet.
-    }
-    await sleep(1000);
-  }
-  throw new Error(`Server did not become ready at ${url}`);
-}
-
-function startServer(): ChildProcess {
-  return spawn("npx", ["next", "dev", "-p", String(PORT)], {
-    cwd: resolve(import.meta.dirname, ".."),
-    env: {
-      ...process.env,
-      PORT: String(PORT),
-      BETTER_AUTH_URL: BASE_URL,
-      APP_URL: BASE_URL,
-      NEXT_PUBLIC_APP_URL: BASE_URL,
-    },
-    stdio: ["ignore", "pipe", "pipe"],
-    detached: true,
-  });
-}
-
-async function stopServer(server: ChildProcess): Promise<void> {
-  if (!server.pid) return;
-  try {
-    process.kill(-server.pid, "SIGTERM");
-  } catch {
-    server.kill("SIGTERM");
-  }
-  await sleep(1000);
-  try {
-    process.kill(-server.pid, "SIGKILL");
-  } catch {
-    if (!server.killed) server.kill("SIGKILL");
-  }
-}
 
 function readAuthSnippet(): string {
   const authPath = resolve(import.meta.dirname, "../src/lib/auth.ts");
@@ -93,11 +49,8 @@ async function run(): Promise<Evidence> {
   };
 
   const prisma = new PrismaClient();
-  const server = startServer();
 
   try {
-    await waitForServer(`${BASE_URL}/login`);
-
     const beforeCount = await prisma.user.count({
       where: { email: TEST_EMAIL },
     });
@@ -106,18 +59,22 @@ async function run(): Promise<Evidence> {
       return evidence;
     }
 
-    const response = await fetch(`${BASE_URL}/api/auth/sign-up/email`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        origin: BASE_URL,
-      },
-      body: JSON.stringify({
-        name: "Unauthorized Signup",
-        email: TEST_EMAIL,
-        password: "password12345",
+    // Exercise Better Auth's real sign-up handler against Postgres (no second
+    // `next dev` — Next 16 refuses two dev servers in one workspace).
+    const response = await auth.handler(
+      new Request(`${ORIGIN}/api/auth/sign-up/email`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: ORIGIN,
+        },
+        body: JSON.stringify({
+          name: "Unauthorized Signup",
+          email: TEST_EMAIL,
+          password: "password12345",
+        }),
       }),
-    });
+    );
 
     evidence.signup.status = response.status;
     evidence.signup.body = await response.json().catch(() => null);
@@ -146,11 +103,14 @@ async function run(): Promise<Evidence> {
       evidence.errors.push("Invite accept route is missing");
     }
 
+    if (!evidence.authTsSnippet.includes("disableSignUp: true")) {
+      evidence.errors.push("auth.ts is missing disableSignUp: true");
+    }
+
     evidence.passed = evidence.errors.length === 0;
     return evidence;
   } finally {
     await prisma.$disconnect();
-    await stopServer(server);
   }
 }
 
@@ -165,7 +125,7 @@ function formatEvidence(result: Evidence): string {
     "=== invite accept route exists ===",
     String(result.inviteAcceptRouteExists),
     "",
-    "=== POST /api/auth/sign-up/email ===",
+    "=== POST /api/auth/sign-up/email (via auth.handler) ===",
     `status: ${result.signup.status}`,
     `body: ${JSON.stringify(result.signup.body, null, 2)}`,
     "",
