@@ -9,9 +9,8 @@ loadEnv({ path: resolve(import.meta.dirname, "../.env") });
 const TEST_EMAIL = `saa84-blocked-${Date.now()}@example.com`;
 const ORIGIN =
   process.env.BETTER_AUTH_URL ?? process.env.APP_URL ?? "http://localhost:3000";
-const EVIDENCE_PATH =
-  process.env.SAA84_EVIDENCE_PATH ??
-  "/opt/cursor/artifacts/saa-84-signup-disabled-evidence.txt";
+/** Optional. When set, write the evidence report there; otherwise stdout only. */
+const EVIDENCE_PATH = process.env.SAA84_EVIDENCE_PATH;
 
 type Evidence = {
   passed: boolean;
@@ -147,9 +146,12 @@ async function main(): Promise<void> {
   const result = await run();
   const output = formatEvidence(result);
 
-  mkdirSync(resolve(EVIDENCE_PATH, ".."), { recursive: true });
-  writeFileSync(EVIDENCE_PATH, output, "utf8");
   console.log(output);
+
+  if (EVIDENCE_PATH) {
+    mkdirSync(resolve(EVIDENCE_PATH, ".."), { recursive: true });
+    writeFileSync(EVIDENCE_PATH, output, "utf8");
+  }
 
   if (!result.passed) {
     process.exit(1);
