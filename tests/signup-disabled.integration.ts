@@ -6,12 +6,12 @@ import { auth } from "../src/lib/auth";
 
 loadEnv({ path: resolve(import.meta.dirname, "../.env") });
 
-const TEST_EMAIL = `saa84-blocked-${Date.now()}@example.com`;
+const TEST_EMAIL = `blocked-signup-${Date.now()}@example.com`;
 const ORIGIN =
   process.env.BETTER_AUTH_URL ?? process.env.APP_URL ?? "http://localhost:3000";
 const EVIDENCE_PATH =
-  process.env.SAA84_EVIDENCE_PATH ??
-  resolve(import.meta.dirname, "../tmp/saa-84-signup-disabled-evidence.txt");
+  process.env.SIGNUP_TEST_EVIDENCE_PATH ??
+  resolve(import.meta.dirname, "../tmp/signup-disabled-evidence.txt");
 
 type Evidence = {
   passed: boolean;
@@ -116,7 +116,7 @@ async function run(): Promise<Evidence> {
 
 function formatEvidence(result: Evidence): string {
   const lines = [
-    "SAA-84: disable open email sign-up integration evidence",
+    "Open email sign-up disabled: integration evidence",
     `timestamp: ${new Date().toISOString()}`,
     "",
     "=== auth.ts snippet ===",

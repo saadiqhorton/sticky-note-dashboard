@@ -10,7 +10,7 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "bootstrap": "node scripts/bootstrap.mjs",
-    "test:saa-84": "tsx tests/saa-84-signup-disabled.integration.ts"
+    "test:signup-disabled": "tsx tests/signup-disabled.integration.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
