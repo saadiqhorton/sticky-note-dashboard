@@ -37,13 +37,20 @@ function runBootstrap(env) {
   const result = spawnSync(process.execPath, ["scripts/bootstrap.mjs"], {
     cwd: root,
     env: {
-      // Minimal env — do not inherit a host DATABASE_URL that could let a
-      // bad case proceed past credential checks into a real database.
+      // Minimal env. Explicitly set ADMIN_* (including "") so Prisma/dotenv
+      // loading of a local `.env` cannot resurrect host smoke credentials and
+      // make the "unset" production case look like a success.
       PATH: process.env.PATH,
+      HOME: process.env.HOME,
       NODE_ENV: env.NODE_ENV,
-      ADMIN_EMAIL: env.ADMIN_EMAIL,
-      ADMIN_PASSWORD: env.ADMIN_PASSWORD,
-      ADMIN_NAME: env.ADMIN_NAME,
+      ADMIN_EMAIL: env.ADMIN_EMAIL ?? "",
+      ADMIN_PASSWORD: env.ADMIN_PASSWORD ?? "",
+      ADMIN_NAME: env.ADMIN_NAME ?? "",
+      // Keep DB isolated unless a case opts in (strong-credentials offline
+      // cases omit this so a missing URL still fails after the credential gate).
+      ...(Object.prototype.hasOwnProperty.call(env, "DATABASE_URL")
+        ? { DATABASE_URL: env.DATABASE_URL }
+        : { DATABASE_URL: "" }),
     },
     encoding: "utf8",
   });
