@@ -25,7 +25,8 @@ services:
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       DATABASE_URL: postgresql://stickyboard:${POSTGRES_PASSWORD}@db:5432/stickyboard
-      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-change-me-to-a-long-random-string}
+      # Required — no default. Generate with: openssl rand -hex 32
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
       APP_URL: ${APP_URL:-http://localhost:3000}
       # Required for first-boot admin creation. Production bootstrap fails if
