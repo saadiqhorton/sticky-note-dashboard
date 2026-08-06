@@ -25,6 +25,10 @@ export async function restoreNote(noteId: string) {
 
 export async function purgeNote(noteId: string) {
   await requireAdmin();
-  await prisma.note.delete({ where: { id: noteId } });
+  // Only permanently delete notes already in trash — never live board notes.
+  const result = await prisma.note.deleteMany({
+    where: { id: noteId, deletedAt: { not: null } },
+  });
+  if (result.count === 0) return;
   revalidatePath("/trash");
 }
