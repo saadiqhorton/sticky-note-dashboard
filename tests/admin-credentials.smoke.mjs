@@ -82,7 +82,8 @@ function baseEnv(overrides = {}) {
       process.env.DATABASE_URL ??
       "postgresql://stickyboard:stickyboard@127.0.0.1:5432/stickyboard",
     BETTER_AUTH_SECRET:
-      process.env.BETTER_AUTH_SECRET ?? "smoke-test-secret-not-for-production",
+      process.env.BETTER_AUTH_SECRET ??
+      "smoke-test-secret-not-for-production-0123456789abcdef",
     BETTER_AUTH_URL: ORIGIN,
     APP_URL: ORIGIN,
     ...overrides,

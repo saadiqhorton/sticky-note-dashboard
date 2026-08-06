@@ -10,8 +10,9 @@ Design reference: [Figma — Sticky Note Dashboard](https://www.figma.com/design
 
 ```bash
 cp .env.example .env
-# set POSTGRES_PASSWORD (openssl rand -hex 32), ADMIN_EMAIL, ADMIN_PASSWORD
-# (8+ chars, letters + numbers), and BETTER_AUTH_SECRET
+# set POSTGRES_PASSWORD (openssl rand -hex 32), ADMIN_EMAIL, and
+# ADMIN_PASSWORD (8+ chars, letters + numbers)
+# BETTER_AUTH_SECRET can stay empty — Docker creates one on first boot
 
 docker compose up --build
 ```
@@ -26,6 +27,10 @@ Postgres is **not** published on the host. The app reaches it only on the Compos
 network (`db:5432`). `POSTGRES_PASSWORD` is required (no default); generate with
 `openssl rand -hex 32`. The app refuses to start if the password is missing or weak.
 
+`BETTER_AUTH_SECRET` is optional in Docker: if you leave it unset, the app
+generates a unique secret on first boot and keeps it on the uploads volume.
+Known placeholder values (like `change-me-to-a-long-random-string`) are rejected.
+
 If you previously ran Compose with the old default password, recreate the Postgres
 volume after setting a new `POSTGRES_PASSWORD` — Postgres only applies that env
 var on first database init (`docker compose down -v` then `up --build`).
@@ -35,6 +40,7 @@ var on first database init (`docker compose down -v` then `up --build`).
 ```bash
 cp .env.example .env
 # Set POSTGRES_PASSWORD (openssl rand -hex 32) and matching DATABASE_URL
+# Set BETTER_AUTH_SECRET to any long random value for local npm run dev
 # Set ADMIN_EMAIL / ADMIN_PASSWORD before bootstrap if you want a first admin
 
 # Optional: Compose Postgres with host port 5433 for npm run dev
@@ -55,7 +61,7 @@ when using the optional `docker-compose.dev.yml` overlay.
 |----------|---------|
 | `POSTGRES_PASSWORD` | Compose Postgres password (required; strong generated secret) |
 | `DATABASE_URL` | Postgres connection string (local npm / tools) |
-| `BETTER_AUTH_SECRET` | Auth signing secret |
+| `BETTER_AUTH_SECRET` | Auth signing secret (optional in Docker; auto-generated if unset) |
 | `BETTER_AUTH_URL` / `APP_URL` | Public app URL |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | First admin (bootstrap; required in production) |
 | `UPLOAD_DIR` | Local attachment storage path |
