@@ -26,6 +26,16 @@ export async function POST(request: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Invite is invalid or expired" }, { status: 400 });
   }
 
+  if (
+    invite.email &&
+    invite.email.trim().toLowerCase() !== email
+  ) {
+    return NextResponse.json(
+      { error: "Email does not match this invite" },
+      { status: 400 },
+    );
+  }
+
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
     return NextResponse.json({ error: "Email already registered" }, { status: 409 });
