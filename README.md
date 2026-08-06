@@ -10,7 +10,7 @@ Design reference: [Figma — Sticky Note Dashboard](https://www.figma.com/design
 
 ```bash
 cp .env.example .env
-# edit ADMIN_EMAIL / ADMIN_PASSWORD / BETTER_AUTH_SECRET
+# set ADMIN_EMAIL, ADMIN_PASSWORD (12+ chars, letters + numbers), BETTER_AUTH_SECRET
 
 docker compose up --build
 ```
@@ -18,19 +18,21 @@ docker compose up --build
 App: http://localhost:3000  
 Sign in with your admin credentials from `.env`.
 
+Docker / production bootstrap **requires** `ADMIN_EMAIL` and a strong `ADMIN_PASSWORD`
+(no compose defaults). The container exits if they are missing or weak.
+
 ## Local development
 
 ```bash
 cp .env.example .env
 # Ensure Postgres is available at DATABASE_URL (Compose DB or local Postgres)
+# Set ADMIN_EMAIL / ADMIN_PASSWORD before bootstrap if you want a first admin
 docker compose up db -d   # optional if using Compose Postgres
 npm install
 npx prisma migrate deploy
 npm run bootstrap
 npm run dev
 ```
-
-Default admin (from `.env`): `admin@example.com` / `changeme123`
 
 ## Env vars
 
@@ -39,7 +41,7 @@ Default admin (from `.env`): `admin@example.com` / `changeme123`
 | `DATABASE_URL` | Postgres connection string |
 | `BETTER_AUTH_SECRET` | Auth signing secret |
 | `BETTER_AUTH_URL` / `APP_URL` | Public app URL |
-| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | First admin (bootstrap) |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | First admin (bootstrap; required in production) |
 | `UPLOAD_DIR` | Local attachment storage path |
 
 ## What’s in v1 so far

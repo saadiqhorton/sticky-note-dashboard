@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "better-auth/crypto";
+import { resolveAdminBootstrapCredentials } from "./lib/admin-credentials.mjs";
 
 const prisma = new PrismaClient();
 
@@ -18,14 +19,22 @@ async function ensureCompanyBoard() {
 }
 
 async function ensureAdmin() {
-  const email = process.env.ADMIN_EMAIL;
-  const password = process.env.ADMIN_PASSWORD;
   const name = process.env.ADMIN_NAME ?? "Admin";
+  const resolved = resolveAdminBootstrapCredentials({
+    email: process.env.ADMIN_EMAIL,
+    password: process.env.ADMIN_PASSWORD,
+  });
 
-  if (!email || !password) {
+  if (resolved.error) {
+    throw new Error(resolved.error);
+  }
+
+  if (resolved.action === "skip") {
     console.log("Skipping admin bootstrap: ADMIN_EMAIL / ADMIN_PASSWORD not set");
     return;
   }
+
+  const { email, password } = resolved;
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
