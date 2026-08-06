@@ -17,7 +17,8 @@
     "test:postgres-credentials-evidence": "node tests/postgres-credentials.evidence.mjs",
     "test:auth-secret": "node tests/auth-secret.test.mjs",
     "test:auth-secret-evidence": "node tests/auth-secret.evidence.mjs",
-    "test:signup-disabled": "tsx tests/signup-disabled.integration.ts"
+    "test:signup-disabled": "tsx tests/signup-disabled.integration.ts",
+    "test:invite-email-hint": "tsx tests/invite-email-hint.integration.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
