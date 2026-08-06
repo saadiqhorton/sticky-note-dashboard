@@ -26,4 +26,4 @@ COPY --from=builder /app/scripts ./scripts
 RUN mkdir -p /data/uploads && chown -R nextjs:nodejs /data /app
 USER nextjs
 EXPOSE 3000
-CMD ["sh", "-c", "npx prisma migrate deploy && node scripts/bootstrap.mjs && npm run start"]
+CMD ["sh", "-c", "node scripts/check-db-credentials.mjs && npx prisma migrate deploy && node scripts/bootstrap.mjs && npm run start"]
