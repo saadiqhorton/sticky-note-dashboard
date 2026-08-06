@@ -10,7 +10,7 @@ Design reference: [Figma — Sticky Note Dashboard](https://www.figma.com/design
 
 ```bash
 cp .env.example .env
-# set ADMIN_EMAIL, ADMIN_PASSWORD (12+ chars, letters + numbers), BETTER_AUTH_SECRET
+# set ADMIN_EMAIL, ADMIN_PASSWORD (8+ chars, letters + numbers), BETTER_AUTH_SECRET
 
 docker compose up --build
 ```

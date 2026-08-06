@@ -1,5 +1,5 @@
 /** Minimum length for production admin bootstrap passwords. */
-export const ADMIN_PASSWORD_MIN_LENGTH = 12;
+export const ADMIN_PASSWORD_MIN_LENGTH = 8;
 
 /** Known insecure defaults / common passwords rejected in production. */
 export const WEAK_ADMIN_PASSWORDS = new Set([
