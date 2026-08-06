@@ -78,7 +78,9 @@ export function resolveAdminBootstrapCredentials({
   isProduction = process.env.NODE_ENV === "production",
 } = {}) {
   const trimmedEmail = typeof email === "string" ? email.trim() : "";
-  const trimmedPassword = typeof password === "string" ? password : "";
+  // Trim password so whitespace cannot bypass the known-weak blocklist
+  // (e.g. "changeme123 ") or create an admin with accidental padding.
+  const trimmedPassword = typeof password === "string" ? password.trim() : "";
 
   if (!trimmedEmail || !trimmedPassword) {
     if (isProduction) {

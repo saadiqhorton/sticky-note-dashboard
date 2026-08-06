@@ -282,6 +282,19 @@ function main() {
     },
   );
 
+  checkBootstrapProcess(
+    "production bootstrap rejects padded known-weak password",
+    {
+      NODE_ENV: "production",
+      ADMIN_EMAIL: "admin@example.com",
+      ADMIN_PASSWORD: "  changeme123  ",
+    },
+    {
+      status: 1,
+      outputIncludes: ["weak admin credentials"],
+    },
+  );
+
   checkDevUnsetDoesNotHardFail();
   checkStrongCredentialsPassGate();
 

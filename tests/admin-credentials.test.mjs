@@ -60,9 +60,17 @@ test("production requires credentials and rejects weak passwords", () => {
   assert.equal(weak.action, "skip");
   assert.match(weak.error ?? "", /weak admin credentials/);
 
+  const weakPadded = resolveAdminBootstrapCredentials({
+    email: "admin@example.com",
+    password: "  changeme123  ",
+    isProduction: true,
+  });
+  assert.equal(weakPadded.action, "skip");
+  assert.match(weakPadded.error ?? "", /weak admin credentials/);
+
   const ok = resolveAdminBootstrapCredentials({
     email: " Admin@Example.com ",
-    password: "CorrectHorseBattery1",
+    password: "  CorrectHorseBattery1  ",
     isProduction: true,
   });
   assert.equal(ok.action, "proceed");
