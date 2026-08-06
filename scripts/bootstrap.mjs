@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "better-auth/crypto";
+import { pathToFileURL } from "node:url";
 import { resolveAdminBootstrapCredentials } from "./lib/admin-credentials.mjs";
 
 const prisma = new PrismaClient();
@@ -18,16 +19,8 @@ async function ensureCompanyBoard() {
   });
 }
 
-async function ensureAdmin() {
+async function ensureAdmin(resolved) {
   const name = process.env.ADMIN_NAME ?? "Admin";
-  const resolved = resolveAdminBootstrapCredentials({
-    email: process.env.ADMIN_EMAIL,
-    password: process.env.ADMIN_PASSWORD,
-  });
-
-  if (resolved.error) {
-    throw new Error(resolved.error);
-  }
 
   if (resolved.action === "skip") {
     console.log("Skipping admin bootstrap: ADMIN_EMAIL / ADMIN_PASSWORD not set");
@@ -88,16 +81,31 @@ async function ensurePrivateBoard(userId) {
 }
 
 async function main() {
+  // Fail closed in production before touching the database so missing/weak
+  // admin credentials never reach Postgres (and can be evidence-tested offline).
+  const resolved = resolveAdminBootstrapCredentials({
+    email: process.env.ADMIN_EMAIL,
+    password: process.env.ADMIN_PASSWORD,
+  });
+  if (resolved.error) {
+    throw new Error(resolved.error);
+  }
+
   await ensureCompanyBoard();
-  await ensureAdmin();
+  await ensureAdmin(resolved);
 }
 
-main()
-  .then(async () => {
-    await prisma.$disconnect();
-  })
-  .catch(async (error) => {
-    console.error(error);
-    await prisma.$disconnect();
-    process.exit(1);
-  });
+const isMain =
+  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (isMain) {
+  main()
+    .then(async () => {
+      await prisma.$disconnect();
+    })
+    .catch(async (error) => {
+      console.error(error);
+      await prisma.$disconnect();
+      process.exit(1);
+    });
+}
