@@ -10,6 +10,9 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "bootstrap": "node scripts/bootstrap.mjs",
+    "test:admin-credentials": "node tests/admin-credentials.test.mjs",
+    "test:admin-credentials-evidence": "node tests/admin-credentials.evidence.mjs",
+    "test:admin-credentials-smoke": "tsx tests/admin-credentials.smoke.mjs",
     "test:signup-disabled": "tsx tests/signup-disabled.integration.ts"
   },
   "dependencies": {
