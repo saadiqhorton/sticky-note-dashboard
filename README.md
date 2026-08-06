@@ -26,6 +26,10 @@ Postgres is **not** published on the host. The app reaches it only on the Compos
 network (`db:5432`). `POSTGRES_PASSWORD` is required (no default); generate with
 `openssl rand -hex 32`. The app refuses to start if the password is missing or weak.
 
+If you previously ran Compose with the old default password, recreate the Postgres
+volume after setting a new `POSTGRES_PASSWORD` — Postgres only applies that env
+var on first database init (`docker compose down -v` then `up --build`).
+
 ## Local development
 
 ```bash

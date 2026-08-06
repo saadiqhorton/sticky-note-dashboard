@@ -71,11 +71,15 @@ function checkComposeDefaults() {
 
 function checkDevOverlay() {
   const overlay = readFileSync(resolve(root, "docker-compose.dev.yml"), "utf8");
-  const publishes = /5433:5432/.test(overlay);
+  const loopbackOnly = /127\.0\.0\.1:5433:5432/.test(overlay);
+  const allInterfaces = /^\s*-\s*["']?5433:5432["']?\s*$/m.test(overlay);
   record(
-    "docker-compose.dev.yml optionally publishes Postgres for local development",
-    publishes,
-    `contains 5433:5432: ${publishes}`,
+    "docker-compose.dev.yml optionally publishes Postgres on loopback only",
+    loopbackOnly && !allInterfaces,
+    [
+      `contains 127.0.0.1:5433:5432: ${loopbackOnly}`,
+      `all-interfaces 5433:5432: ${allInterfaces}`,
+    ].join("\n  "),
   );
 }
 

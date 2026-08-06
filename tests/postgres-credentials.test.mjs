@@ -38,7 +38,8 @@ test("docker-compose.yml does not publish Postgres and has no default password",
 
 test("docker-compose.dev.yml optionally publishes Postgres for local npm run dev", () => {
   const overlay = readFileSync(resolve(root, "docker-compose.dev.yml"), "utf8");
-  assert.match(overlay, /5433:5432/);
+  assert.match(overlay, /127\.0\.0\.1:5433:5432/);
+  assert.doesNotMatch(overlay, /^\s*-\s*["']?5433:5432["']?\s*$/m);
 });
 
 test(".env.example does not ship stickyboard/stickyboard defaults", () => {
