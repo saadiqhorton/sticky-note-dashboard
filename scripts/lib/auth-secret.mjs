@@ -1,5 +1,17 @@
+import { randomBytes } from "node:crypto";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
+import { dirname } from "node:path";
+
 /** Minimum length for Compose / production Better Auth secrets. */
 export const BETTER_AUTH_SECRET_MIN_LENGTH = 32;
+
+/** Persisted secret path inside the Docker app volume. */
+export const DEFAULT_AUTH_SECRET_FILE = "/data/uploads/.better-auth-secret";
 
 /** Known insecure defaults rejected for Better Auth signing. */
 export const WEAK_BETTER_AUTH_SECRETS = new Set([
@@ -17,6 +29,13 @@ export const WEAK_BETTER_AUTH_SECRETS = new Set([
   "test-secret",
   "12345678901234567890123456789012",
 ]);
+
+/**
+ * @returns {string}
+ */
+export function generateBetterAuthSecret() {
+  return randomBytes(32).toString("hex");
+}
 
 /**
  * @param {string | undefined | null} secret
@@ -55,8 +74,7 @@ export function assessBetterAuthSecret(secret) {
 }
 
 /**
- * Resolve and validate the Better Auth signing secret used by Docker Compose.
- * Production / Compose always require a non-weak high-entropy secret.
+ * Validate an explicitly provided Better Auth secret (no generation).
  *
  * @param {{
  *   secret?: string | null,
@@ -79,7 +97,7 @@ export function resolveBetterAuthSecret({
       return {
         action: "skip",
         error:
-          "BETTER_AUTH_SECRET must be set to a strong generated secret (e.g. openssl rand -hex 32)",
+          "BETTER_AUTH_SECRET must be set, or leave it unset in Docker to auto-generate one",
       };
     }
     return { action: "skip" };
@@ -97,4 +115,104 @@ export function resolveBetterAuthSecret({
     action: "proceed",
     secret: trimmed,
   };
+}
+
+/**
+ * Resolve a strong Better Auth secret for app start.
+ * Prefer env, then a persisted file, then generate + persist when allowed.
+ *
+ * @param {{
+ *   secret?: string | null,
+ *   persistPath?: string | null,
+ *   required?: boolean,
+ *   allowGenerate?: boolean,
+ * }} options
+ * @returns {{
+ *   action: "skip" | "proceed",
+ *   secret?: string,
+ *   source?: "env" | "file" | "generated",
+ *   error?: string,
+ * }}
+ */
+export function ensureBetterAuthSecret({
+  secret,
+  persistPath,
+  required = true,
+  allowGenerate = Boolean(persistPath),
+} = {}) {
+  const trimmed = typeof secret === "string" ? secret.trim() : "";
+
+  if (trimmed) {
+    const assessment = assessBetterAuthSecret(trimmed);
+    if (assessment.weak) {
+      return {
+        action: "skip",
+        error: `Rejected weak Better Auth secret: ${assessment.reason}`,
+      };
+    }
+    return {
+      action: "proceed",
+      secret: trimmed,
+      source: "env",
+    };
+  }
+
+  const filePath =
+    typeof persistPath === "string" && persistPath.trim()
+      ? persistPath.trim()
+      : "";
+
+  if (filePath && existsSync(filePath)) {
+    try {
+      const fromFile = readFileSync(filePath, "utf8").trim();
+      const assessment = assessBetterAuthSecret(fromFile);
+      if (!assessment.weak) {
+        return {
+          action: "proceed",
+          secret: fromFile,
+          source: "file",
+        };
+      }
+    } catch (error) {
+      return {
+        action: "skip",
+        error: `Could not read persisted BETTER_AUTH_SECRET file: ${
+          error instanceof Error ? error.message : error
+        }`,
+      };
+    }
+  }
+
+  if (allowGenerate && filePath) {
+    const generated = generateBetterAuthSecret();
+    try {
+      mkdirSync(dirname(filePath), { recursive: true });
+      writeFileSync(filePath, `${generated}\n`, {
+        encoding: "utf8",
+        mode: 0o600,
+      });
+    } catch (error) {
+      return {
+        action: "skip",
+        error: `Could not persist generated BETTER_AUTH_SECRET: ${
+          error instanceof Error ? error.message : error
+        }`,
+      };
+    }
+    return {
+      action: "proceed",
+      secret: generated,
+      source: "generated",
+    };
+  }
+
+  if (required) {
+    return {
+      action: "skip",
+      error:
+        "BETTER_AUTH_SECRET must be set, or leave it unset in Docker to auto-generate one",
+    };
+  }
+
+  return { action: "skip" };
 }

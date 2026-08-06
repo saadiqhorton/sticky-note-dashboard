@@ -1,16 +1,28 @@
 /**
- * Fail closed before migrate/start when Better Auth signing secret is missing
- * or weak. Intended for the Docker app entrypoint.
+ * Ensure a strong Better Auth signing secret before migrate/start.
+ * In Docker, missing secrets are auto-generated and persisted to the app volume.
+ * Explicit weak/default values are always rejected.
  */
 import { pathToFileURL } from "node:url";
-import { resolveBetterAuthSecret } from "./lib/auth-secret.mjs";
+import {
+  DEFAULT_AUTH_SECRET_FILE,
+  ensureBetterAuthSecret,
+} from "./lib/auth-secret.mjs";
 
 export function main(
   env = process.env,
-  { required = env.NODE_ENV === "production" } = {},
+  {
+    required = env.NODE_ENV === "production",
+    persistPath = env.AUTH_SECRET_FILE,
+    allowGenerate = Boolean(
+      typeof persistPath === "string" && persistPath.trim(),
+    ),
+  } = {},
 ) {
-  const resolved = resolveBetterAuthSecret({
+  const resolved = ensureBetterAuthSecret({
     secret: env.BETTER_AUTH_SECRET,
+    persistPath,
+    allowGenerate,
     required,
   });
 
@@ -25,7 +37,16 @@ export function main(
     return resolved;
   }
 
-  console.log("Better Auth secret OK");
+  if (resolved.source === "generated") {
+    console.log(
+      "Generated a unique BETTER_AUTH_SECRET and saved it for this deployment",
+    );
+  } else if (resolved.source === "file") {
+    console.log("Loaded BETTER_AUTH_SECRET from deployment volume");
+  } else {
+    console.log("Better Auth secret OK");
+  }
+
   return resolved;
 }
 
@@ -34,8 +55,15 @@ const isMain =
 
 if (isMain) {
   try {
-    // Docker runner sets NODE_ENV=production; always require there.
-    main(process.env, { required: true });
+    // Docker runner always requires a strong secret; generate when unset.
+    const resolved = main(process.env, {
+      required: true,
+      persistPath: process.env.AUTH_SECRET_FILE ?? DEFAULT_AUTH_SECRET_FILE,
+      allowGenerate: true,
+    });
+    if (resolved.secret) {
+      process.env.BETTER_AUTH_SECRET = resolved.secret;
+    }
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);
     process.exit(1);

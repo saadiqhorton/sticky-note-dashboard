@@ -1,10 +1,18 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import {
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   BETTER_AUTH_SECRET_MIN_LENGTH,
   assessBetterAuthSecret,
+  ensureBetterAuthSecret,
+  generateBetterAuthSecret,
   resolveBetterAuthSecret,
 } from "../scripts/lib/auth-secret.mjs";
 import { main as checkAuthSecret } from "../scripts/check-auth-secret.mjs";
@@ -23,10 +31,10 @@ function test(name, fn) {
   }
 }
 
-test("docker-compose.yml has no default BETTER_AUTH_SECRET", () => {
+test("docker-compose.yml has no forgeable BETTER_AUTH_SECRET default", () => {
   const compose = readFileSync(resolve(root, "docker-compose.yml"), "utf8");
-  assert.match(compose, /BETTER_AUTH_SECRET:\s*\$\{BETTER_AUTH_SECRET\}/);
-  assert.doesNotMatch(compose, /BETTER_AUTH_SECRET:-\S+/);
+  assert.match(compose, /BETTER_AUTH_SECRET:\s*\$\{BETTER_AUTH_SECRET:-?\}/);
+  assert.doesNotMatch(compose, /BETTER_AUTH_SECRET:-[^}\s]+/);
   assert.doesNotMatch(compose, /change-me-to-a-long-random-string/);
 });
 
@@ -94,24 +102,97 @@ test("resolveBetterAuthSecret requires strong secret when required", () => {
   assert.equal(ok.secret, STRONG_AUTH_SECRET);
 });
 
-test("check-auth-secret fails closed on missing/weak production secret", () => {
-  assert.throws(
-    () => checkAuthSecret({ BETTER_AUTH_SECRET: "" }, { required: true }),
-    /BETTER_AUTH_SECRET must be set/,
-  );
+test("ensureBetterAuthSecret auto-generates and persists when unset", () => {
+  const dir = mkdtempSync(join(tmpdir(), "stickyboard-auth-secret-"));
+  const persistPath = join(dir, ".better-auth-secret");
+  try {
+    const first = ensureBetterAuthSecret({
+      secret: "",
+      persistPath,
+      allowGenerate: true,
+      required: true,
+    });
+    assert.equal(first.action, "proceed");
+    assert.equal(first.source, "generated");
+    assert.equal(assessBetterAuthSecret(first.secret).weak, false);
+    assert.equal(readFileSync(persistPath, "utf8").trim(), first.secret);
+
+    const second = ensureBetterAuthSecret({
+      secret: "",
+      persistPath,
+      allowGenerate: true,
+      required: true,
+    });
+    assert.equal(second.action, "proceed");
+    assert.equal(second.source, "file");
+    assert.equal(second.secret, first.secret);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("ensureBetterAuthSecret rejects weak env even when generate is allowed", () => {
+  const dir = mkdtempSync(join(tmpdir(), "stickyboard-auth-secret-"));
+  const persistPath = join(dir, ".better-auth-secret");
+  try {
+    const weak = ensureBetterAuthSecret({
+      secret: "change-me-to-a-long-random-string",
+      persistPath,
+      allowGenerate: true,
+      required: true,
+    });
+    assert.equal(weak.action, "skip");
+    assert.match(weak.error ?? "", /weak Better Auth secret/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("generateBetterAuthSecret returns a strong unique value", () => {
+  const a = generateBetterAuthSecret();
+  const b = generateBetterAuthSecret();
+  assert.equal(assessBetterAuthSecret(a).weak, false);
+  assert.equal(assessBetterAuthSecret(b).weak, false);
+  assert.notEqual(a, b);
+});
+
+test("check-auth-secret fails closed on weak secret; generates when unset with persist path", () => {
   assert.throws(
     () =>
       checkAuthSecret(
         { BETTER_AUTH_SECRET: "change-me-to-a-long-random-string" },
-        { required: true },
+        { required: true, allowGenerate: false },
       ),
     /weak Better Auth secret/,
   );
-  const ok = checkAuthSecret(
-    { BETTER_AUTH_SECRET: STRONG_AUTH_SECRET },
-    { required: true },
-  );
-  assert.equal(ok.action, "proceed");
+
+  const dir = mkdtempSync(join(tmpdir(), "stickyboard-auth-secret-"));
+  const persistPath = join(dir, ".better-auth-secret");
+  try {
+    const generated = checkAuthSecret(
+      { BETTER_AUTH_SECRET: "" },
+      { required: true, persistPath, allowGenerate: true },
+    );
+    assert.equal(generated.action, "proceed");
+    assert.equal(generated.source, "generated");
+
+    writeFileSync(persistPath, `${STRONG_AUTH_SECRET}\n`, "utf8");
+    const fromFile = checkAuthSecret(
+      { BETTER_AUTH_SECRET: "" },
+      { required: true, persistPath, allowGenerate: true },
+    );
+    assert.equal(fromFile.action, "proceed");
+    assert.equal(fromFile.source, "file");
+    assert.equal(fromFile.secret, STRONG_AUTH_SECRET);
+
+    const ok = checkAuthSecret(
+      { BETTER_AUTH_SECRET: STRONG_AUTH_SECRET },
+      { required: true, allowGenerate: false },
+    );
+    assert.equal(ok.action, "proceed");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 if (failures > 0) {

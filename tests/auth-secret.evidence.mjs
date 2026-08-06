@@ -1,6 +1,7 @@
 /**
  * Evidence-driven checks for SEC Better Auth secret hardening:
- * no Compose default, weak secrets rejected at entrypoint.
+ * no Compose forgeable default, weak secrets rejected, missing secrets
+ * auto-generated and persisted for Docker.
  *
  * Writes a human-readable report under tmp/ (gitignored).
  */
@@ -8,13 +9,17 @@ import { spawnSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
+  mkdtempSync,
   readFileSync,
+  rmSync,
   writeFileSync,
 } from "node:fs";
-import { resolve } from "node:path";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   assessBetterAuthSecret,
+  ensureBetterAuthSecret,
   resolveBetterAuthSecret,
 } from "../scripts/lib/auth-secret.mjs";
 
@@ -34,20 +39,19 @@ function record(name, passed, detail) {
 
 function checkComposeDefaults() {
   const compose = readFileSync(resolve(root, "docker-compose.yml"), "utf8");
-  const hasBareSecret = /BETTER_AUTH_SECRET:\s*\$\{BETTER_AUTH_SECRET\}/.test(
-    compose,
-  );
-  const hasDefaultSecret = /BETTER_AUTH_SECRET:-\S+/.test(compose);
+  const hasOptionalSecret =
+    /BETTER_AUTH_SECRET:\s*\$\{BETTER_AUTH_SECRET:-?\}/.test(compose);
+  const hasNonEmptyDefault = /BETTER_AUTH_SECRET:-[^}\s]+/.test(compose);
   const hasLegacySecret = /change-me-to-a-long-random-string/.test(compose);
 
-  const passed = hasBareSecret && !hasDefaultSecret && !hasLegacySecret;
+  const passed = hasOptionalSecret && !hasNonEmptyDefault && !hasLegacySecret;
 
   record(
-    "docker-compose.yml requires BETTER_AUTH_SECRET with no default",
+    "docker-compose.yml has no forgeable BETTER_AUTH_SECRET default",
     passed,
     [
-      `bare BETTER_AUTH_SECRET interpolation: ${hasBareSecret}`,
-      `default BETTER_AUTH_SECRET syntax present: ${hasDefaultSecret}`,
+      `optional BETTER_AUTH_SECRET interpolation: ${hasOptionalSecret}`,
+      `non-empty default present: ${hasNonEmptyDefault}`,
       `legacy change-me secret present: ${hasLegacySecret}`,
     ].join("\n  "),
   );
@@ -75,42 +79,68 @@ function checkEnvExample() {
 const STRONG_AUTH_SECRET = "deadbeef0123456789abcdef01234567";
 
 function checkPolicyHelpers() {
-  const weak = assessBetterAuthSecret("change-me-to-a-long-random-string");
-  const short = assessBetterAuthSecret("Abcdefghijklmno1");
-  const lettersOnly = assessBetterAuthSecret("a".repeat(32));
-  const strong = assessBetterAuthSecret(STRONG_AUTH_SECRET);
-  const missing = resolveBetterAuthSecret({ secret: "", required: true });
-  const weakResolved = resolveBetterAuthSecret({
-    secret: "change-me-to-a-long-random-string",
-    required: true,
-  });
-  const ok = resolveBetterAuthSecret({
-    secret: STRONG_AUTH_SECRET,
-    required: true,
-  });
+  const dir = mkdtempSync(join(tmpdir(), "stickyboard-auth-secret-ev-"));
+  const persistPath = join(dir, ".better-auth-secret");
+  try {
+    const weak = assessBetterAuthSecret("change-me-to-a-long-random-string");
+    const short = assessBetterAuthSecret("Abcdefghijklmno1");
+    const lettersOnly = assessBetterAuthSecret("a".repeat(32));
+    const strong = assessBetterAuthSecret(STRONG_AUTH_SECRET);
+    const missing = resolveBetterAuthSecret({ secret: "", required: true });
+    const weakResolved = resolveBetterAuthSecret({
+      secret: "change-me-to-a-long-random-string",
+      required: true,
+    });
+    const ok = resolveBetterAuthSecret({
+      secret: STRONG_AUTH_SECRET,
+      required: true,
+    });
+    const generated = ensureBetterAuthSecret({
+      secret: "",
+      persistPath,
+      allowGenerate: true,
+      required: true,
+    });
+    const reloaded = ensureBetterAuthSecret({
+      secret: "",
+      persistPath,
+      allowGenerate: true,
+      required: true,
+    });
 
-  const passed =
-    weak.weak === true &&
-    short.weak === true &&
-    lettersOnly.weak === true &&
-    strong.weak === false &&
-    Boolean(missing.error) &&
-    Boolean(weakResolved.error) &&
-    ok.action === "proceed";
+    const passed =
+      weak.weak === true &&
+      short.weak === true &&
+      lettersOnly.weak === true &&
+      strong.weak === false &&
+      Boolean(missing.error) &&
+      Boolean(weakResolved.error) &&
+      ok.action === "proceed" &&
+      generated.action === "proceed" &&
+      generated.source === "generated" &&
+      reloaded.action === "proceed" &&
+      reloaded.source === "file" &&
+      reloaded.secret === generated.secret;
 
-  record(
-    "credential policy helpers reject weak / missing Better Auth secrets",
-    passed,
-    [
-      `legacy default weak: ${weak.weak} (${weak.reason ?? "ok"})`,
-      `16-char mixed weak: ${short.weak} (${short.reason ?? "ok"})`,
-      `letters-only weak: ${lettersOnly.weak} (${lettersOnly.reason ?? "ok"})`,
-      `strong hex weak: ${strong.weak}`,
-      `missing error: ${missing.error ?? "none"}`,
-      `weak resolve error: ${weakResolved.error ?? "none"}`,
-      `strong action: ${ok.action}`,
-    ].join("\n  "),
-  );
+    record(
+      "credential policy helpers reject weak secrets and auto-generate when unset",
+      passed,
+      [
+        `legacy default weak: ${weak.weak} (${weak.reason ?? "ok"})`,
+        `16-char mixed weak: ${short.weak} (${short.reason ?? "ok"})`,
+        `letters-only weak: ${lettersOnly.weak} (${lettersOnly.reason ?? "ok"})`,
+        `strong hex weak: ${strong.weak}`,
+        `missing error: ${missing.error ?? "none"}`,
+        `weak resolve error: ${weakResolved.error ?? "none"}`,
+        `strong action: ${ok.action}`,
+        `generated source: ${generated.source}`,
+        `reloaded source: ${reloaded.source}`,
+        `same secret across restarts: ${reloaded.secret === generated.secret}`,
+      ].join("\n  "),
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 function checkEntrypointScript(name, env, expect) {
@@ -124,6 +154,9 @@ function checkEntrypointScript(name, env, expect) {
         HOME: process.env.HOME,
         NODE_ENV: "production",
         BETTER_AUTH_SECRET: env.BETTER_AUTH_SECRET ?? "",
+        ...(env.AUTH_SECRET_FILE
+          ? { AUTH_SECRET_FILE: env.AUTH_SECRET_FILE }
+          : {}),
       },
       encoding: "utf8",
     },
@@ -152,11 +185,17 @@ function checkEntrypointScript(name, env, expect) {
 
 function checkDockerfileEntrypoint() {
   const dockerfile = readFileSync(resolve(root, "Dockerfile"), "utf8");
-  const hasCheck = dockerfile.includes("scripts/check-auth-secret.mjs");
+  const hasEntrypoint = dockerfile.includes("scripts/docker-entrypoint.mjs");
+  const hasSecretFile = dockerfile.includes(
+    "AUTH_SECRET_FILE=/data/uploads/.better-auth-secret",
+  );
   record(
-    "Dockerfile runs Better Auth secret check before migrate/start",
-    hasCheck,
-    `check-auth-secret.mjs in CMD: ${hasCheck}`,
+    "Dockerfile auto-generates BETTER_AUTH_SECRET via docker-entrypoint",
+    hasEntrypoint && hasSecretFile,
+    [
+      `docker-entrypoint.mjs in CMD: ${hasEntrypoint}`,
+      `AUTH_SECRET_FILE set: ${hasSecretFile}`,
+    ].join("\n  "),
   );
 }
 
@@ -192,32 +231,53 @@ function main() {
   checkPolicyHelpers();
   checkDockerfileEntrypoint();
 
-  checkEntrypointScript(
-    "check-auth-secret exits when BETTER_AUTH_SECRET unset",
-    { BETTER_AUTH_SECRET: "" },
-    {
-      status: 1,
-      outputIncludes: ["BETTER_AUTH_SECRET must be set"],
-    },
-  );
+  const dir = mkdtempSync(join(tmpdir(), "stickyboard-auth-secret-cli-"));
+  const persistPath = join(dir, ".better-auth-secret");
+  try {
+    checkEntrypointScript(
+      "check-auth-secret auto-generates when BETTER_AUTH_SECRET unset",
+      { BETTER_AUTH_SECRET: "", AUTH_SECRET_FILE: persistPath },
+      {
+        status: 0,
+        outputIncludes: ["Generated a unique BETTER_AUTH_SECRET"],
+      },
+    );
 
-  checkEntrypointScript(
-    "check-auth-secret exits on legacy change-me secret",
-    { BETTER_AUTH_SECRET: "change-me-to-a-long-random-string" },
-    {
-      status: 1,
-      outputIncludes: ["weak Better Auth secret"],
-    },
-  );
+    checkEntrypointScript(
+      "check-auth-secret reuses persisted secret on restart",
+      { BETTER_AUTH_SECRET: "", AUTH_SECRET_FILE: persistPath },
+      {
+        status: 0,
+        outputIncludes: ["Loaded BETTER_AUTH_SECRET from deployment volume"],
+      },
+    );
 
-  checkEntrypointScript(
-    "check-auth-secret accepts strong generated secret",
-    { BETTER_AUTH_SECRET: STRONG_AUTH_SECRET },
-    {
-      status: 0,
-      outputIncludes: ["Better Auth secret OK"],
-    },
-  );
+    checkEntrypointScript(
+      "check-auth-secret exits on legacy change-me secret",
+      {
+        BETTER_AUTH_SECRET: "change-me-to-a-long-random-string",
+        AUTH_SECRET_FILE: persistPath,
+      },
+      {
+        status: 1,
+        outputIncludes: ["weak Better Auth secret"],
+      },
+    );
+
+    checkEntrypointScript(
+      "check-auth-secret accepts strong provided secret",
+      {
+        BETTER_AUTH_SECRET: STRONG_AUTH_SECRET,
+        AUTH_SECRET_FILE: persistPath,
+      },
+      {
+        status: 0,
+        outputIncludes: ["Better Auth secret OK"],
+      },
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 
   const { passed, output } = formatEvidence();
   mkdirSync(resolve(EVIDENCE_PATH, ".."), { recursive: true });
