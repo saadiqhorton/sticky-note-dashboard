@@ -1,0 +1,9 @@
+# Optional local-dev overlay: publish Postgres to the host for `npm run dev`.
+# Do not use in production — default compose keeps Postgres internal-only.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up db -d
+#
+services:
+  db:
+    ports:
+      - "5433:5432"

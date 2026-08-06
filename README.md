@@ -10,7 +10,8 @@ Design reference: [Figma — Sticky Note Dashboard](https://www.figma.com/design
 
 ```bash
 cp .env.example .env
-# set ADMIN_EMAIL, ADMIN_PASSWORD (8+ chars, letters + numbers), BETTER_AUTH_SECRET
+# set POSTGRES_PASSWORD (openssl rand -hex 32), ADMIN_EMAIL, ADMIN_PASSWORD
+# (8+ chars, letters + numbers), and BETTER_AUTH_SECRET
 
 docker compose up --build
 ```
@@ -21,24 +22,35 @@ Sign in with your admin credentials from `.env`.
 Docker / production bootstrap **requires** `ADMIN_EMAIL` and a strong `ADMIN_PASSWORD`
 (no compose defaults). The container exits if they are missing or weak.
 
+Postgres is **not** published on the host. The app reaches it only on the Compose
+network (`db:5432`). `POSTGRES_PASSWORD` is required (no default); generate with
+`openssl rand -hex 32`. The app refuses to start if the password is missing or weak.
+
 ## Local development
 
 ```bash
 cp .env.example .env
-# Ensure Postgres is available at DATABASE_URL (Compose DB or local Postgres)
+# Set POSTGRES_PASSWORD (openssl rand -hex 32) and matching DATABASE_URL
 # Set ADMIN_EMAIL / ADMIN_PASSWORD before bootstrap if you want a first admin
-docker compose up db -d   # optional if using Compose Postgres
+
+# Optional: Compose Postgres with host port 5433 for npm run dev
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up db -d
+
 npm install
 npx prisma migrate deploy
 npm run bootstrap
 npm run dev
 ```
 
+Use `DATABASE_URL=postgresql://stickyboard:<POSTGRES_PASSWORD>@localhost:5433/stickyboard`
+when using the optional `docker-compose.dev.yml` overlay.
+
 ## Env vars
 
 | Variable | Purpose |
 |----------|---------|
-| `DATABASE_URL` | Postgres connection string |
+| `POSTGRES_PASSWORD` | Compose Postgres password (required; strong generated secret) |
+| `DATABASE_URL` | Postgres connection string (local npm / tools) |
 | `BETTER_AUTH_SECRET` | Auth signing secret |
 | `BETTER_AUTH_URL` / `APP_URL` | Public app URL |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | First admin (bootstrap; required in production) |
