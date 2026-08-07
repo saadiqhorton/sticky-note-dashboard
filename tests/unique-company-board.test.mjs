@@ -94,10 +94,15 @@ test("integration test requires an empty disposable test database", () => {
   assert.match(source, /UNIQUE_COMPANY_BOARD_TEST_DATABASE_URL/);
   assert.match(source, /isDisposableTestDatabaseName/);
   assert.match(source, /assertEmptyCompanyBoardFixture/);
-  assert.match(source, /createdCompanyBoardId/);
+  assert.match(source, /assertStillEmptyCompanyFixture/);
   assert.match(source, /cleanupFixtures/);
+  assert.match(source, /Never delete company boards/);
+  assert.doesNotMatch(source, /createdCompanyBoardId/);
   assert.doesNotMatch(source, /resetCompanyBoards/);
-  assert.doesNotMatch(source, /board\.deleteMany\(\s*\{\s*where:\s*\{\s*type:\s*"company"/);
+  assert.doesNotMatch(
+    source,
+    /board\.deleteMany\(\s*\{\s*where:\s*\{\s*(?:id:[^}]+,\s*)?type:\s*"company"/,
+  );
   assert.doesNotMatch(source, /note\.deleteMany/);
   assert.doesNotMatch(source, /loadEnv/);
 });

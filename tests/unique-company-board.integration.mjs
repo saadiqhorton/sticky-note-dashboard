@@ -4,8 +4,11 @@
  * Refuses to run unless UNIQUE_COMPANY_BOARD_TEST_DATABASE_URL points at a
  * disposable database whose name segments include "test" and no production-like
  * segment (prod, staging, uat, demo, ...), AND the database currently has zero
- * company boards and zero company-board notes. Pre-existing Team boards are
- * never deleted.
+ * company boards and zero company-board notes.
+ *
+ * This test never deletes a company/Team board — including one created during
+ * the run — so a concurrent writer cannot lose its board or notes via our
+ * cleanup. Truncate company boards between runs on the disposable DB if needed.
  *
  *   UNIQUE_COMPANY_BOARD_TEST_DATABASE_URL=postgresql://.../stickyboard_test \
  *     npm run test:unique-company-board-integration
@@ -42,46 +45,45 @@ const { getCompanyBoard } = await import("../src/lib/notes.ts");
 const prisma = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
 
 const createdUserIds = [];
-/** @type {string | null} */
-let createdCompanyBoardId = null;
 
 async function cleanupFixtures() {
-  if (createdUserIds.length > 0) {
-    await prisma.board.deleteMany({
-      where: { ownerUserId: { in: createdUserIds } },
-    });
-    await prisma.user.deleteMany({
-      where: { id: { in: createdUserIds } },
-    });
-  }
-  // Only remove the company board this test created — never pre-existing ones.
-  if (createdCompanyBoardId) {
-    await prisma.board.deleteMany({
-      where: { id: createdCompanyBoardId, type: "company" },
-    });
-    createdCompanyBoardId = null;
-  }
+  // Only remove users/private boards this test created. Never delete company boards:
+  // after the empty pre-flight another process could create the Team board we observe,
+  // and treating it as test-owned would cascade-delete their notes.
+  if (createdUserIds.length === 0) return;
+  await prisma.board.deleteMany({
+    where: { ownerUserId: { in: createdUserIds } },
+  });
+  await prisma.user.deleteMany({
+    where: { id: { in: createdUserIds } },
+  });
 }
 
-async function main() {
+async function assertStillEmptyCompanyFixture() {
   const [companyBoardCount, companyBoardNoteCount] = await Promise.all([
     prisma.board.count({ where: { type: "company" } }),
     prisma.note.count({ where: { board: { type: "company" } } }),
   ]);
-  // Refuse before creating anything if the target is not empty of Team boards.
   assertEmptyCompanyBoardFixture(
     companyBoardCount,
     companyBoardNoteCount,
     databaseName,
   );
+}
+
+async function main() {
+  await assertStillEmptyCompanyFixture();
 
   try {
+    // Re-check immediately before creates so we fail closed if another process
+    // inserted a Team board after the first pre-flight.
+    await assertStillEmptyCompanyFixture();
+
     const results = await Promise.all(
       Array.from({ length: 12 }, () => getCompanyBoard()),
     );
     const ids = new Set(results.map((board) => board.id));
     assert.equal(ids.size, 1, `expected one company board, got ${ids.size}`);
-    createdCompanyBoardId = results[0].id;
 
     const count = await prisma.board.count({ where: { type: "company" } });
     assert.equal(
