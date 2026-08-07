@@ -2,8 +2,9 @@
  * Integration test: partial unique index + race-safe getCompanyBoard.
  *
  * Destructive — refuses to run unless UNIQUE_COMPANY_BOARD_TEST_DATABASE_URL
- * points at a disposable database whose name segments include "test" and
- * never "prod"/"production"/"live".
+ * points at a disposable database whose name segments include "test" and no
+ * production-like segment (prod, staging, uat, demo, ...), and refuses to
+ * delete anything while a company board still holds notes.
  *
  *   UNIQUE_COMPANY_BOARD_TEST_DATABASE_URL=postgresql://.../stickyboard_test \
  *     npm run test:unique-company-board-integration
@@ -11,6 +12,7 @@
 import assert from "node:assert/strict";
 import { Prisma, PrismaClient } from "@prisma/client";
 import {
+  assertNoCompanyBoardNotes,
   databaseNameFromUrl,
   isDisposableTestDatabaseName,
 } from "./helpers/test-database-guard.mjs";
@@ -27,7 +29,7 @@ if (!databaseUrl) {
 const databaseName = databaseNameFromUrl(databaseUrl);
 if (!isDisposableTestDatabaseName(databaseName)) {
   console.error(
-    `Refusing to run against database "${databaseName || "(unparsed)"}" — a name segment must equal "test" and no segment may be "prod", "production", or "live".`,
+    `Refusing to run against database "${databaseName || "(unparsed)"}" — a name segment must equal "test" and no segment may look production-like (prod, production, prd, live, staging, stage, preprod, uat, demo, sandbox).`,
   );
   process.exit(1);
 }
@@ -41,9 +43,6 @@ const prisma = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
 const createdUserIds = [];
 
 async function resetCompanyBoards() {
-  await prisma.note.deleteMany({
-    where: { board: { type: "company" } },
-  });
   await prisma.board.deleteMany({ where: { type: "company" } });
 }
 
@@ -60,6 +59,11 @@ async function cleanupFixtures() {
 }
 
 async function main() {
+  const companyBoardNoteCount = await prisma.note.count({
+    where: { board: { type: "company" } },
+  });
+  assertNoCompanyBoardNotes(companyBoardNoteCount, databaseName);
+
   await resetCompanyBoards();
 
   try {
