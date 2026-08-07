@@ -40,7 +40,7 @@ export function assertEmptyCompanyBoardFixture(
 ) {
   if (companyBoardCount > 0 || companyBoardNoteCount > 0) {
     throw new Error(
-      `Refusing to run against database "${databaseName}": it already holds ${companyBoardCount} company board(s) and ${companyBoardNoteCount} company-board note(s). This test may create and delete a company board; point it at an empty disposable database.`,
+      `Refusing to run against database "${databaseName}": it already holds ${companyBoardCount} company board(s) and ${companyBoardNoteCount} company-board note(s). This test requires an empty disposable database (it never deletes Team boards).`,
     );
   }
 }
