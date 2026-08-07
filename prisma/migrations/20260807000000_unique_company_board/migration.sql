@@ -2,9 +2,15 @@
 -- Existing deployments may already have duplicates from find-then-create races;
 -- merge notes onto the oldest company board, then delete the extras.
 
--- Hold an exclusive lock for the rest of this migration transaction so concurrent
--- app traffic cannot insert notes onto duplicate boards between the merge UPDATE
--- and the DELETE (those notes would otherwise be cascade-deleted).
+-- Hold an exclusive lock for the rest of this migration so concurrent app traffic
+-- cannot insert notes onto duplicate boards between the merge UPDATE and the DELETE
+-- (those notes would otherwise survive on a board that is about to be deleted).
+-- Prisma sends this whole file as one simple query, so Postgres wraps it in an
+-- implicit transaction: the lock is held until the transaction ends and the
+-- migration is all-or-nothing. Without that implicit transaction this LOCK would
+-- raise 25P01 and abort before any destructive statement runs.
+-- Do NOT wrap this file in BEGIN/COMMIT — COMMIT would release the lock early.
+-- When applying this file by hand, use `psql --single-transaction`.
 LOCK TABLE "Board" IN EXCLUSIVE MODE;
 
 WITH ranked AS (
@@ -36,8 +42,8 @@ SET
 FROM renumbered AS m
 WHERE n.id = m.note_id;
 
-DELETE FROM "Board"
-WHERE id IN (
+DELETE FROM "Board" AS b
+WHERE b.id IN (
   SELECT id
   FROM (
     SELECT
@@ -47,7 +53,10 @@ WHERE id IN (
     WHERE "type" = 'company'
   ) AS ranked
   WHERE rn > 1
-);
+)
+-- Never cascade-delete notes. If the merge above did not move every note, the duplicate
+-- survives and CREATE UNIQUE INDEX below fails loudly instead of destroying data.
+AND NOT EXISTS (SELECT 1 FROM "Note" n WHERE n."boardId" = b.id);
 
 -- Partial unique index: only one row with type = 'company' (private boards unrestricted).
 CREATE UNIQUE INDEX "Board_type_company_key" ON "Board" ("type")
