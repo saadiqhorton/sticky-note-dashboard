@@ -2,36 +2,32 @@
  * Integration test: partial unique index + race-safe getCompanyBoard.
  *
  * Destructive — refuses to run unless UNIQUE_COMPANY_BOARD_TEST_DATABASE_URL
- * points at a disposable database whose name contains "test".
+ * points at a disposable database whose name segments include "test" and
+ * never "prod"/"production"/"live".
  *
  *   UNIQUE_COMPANY_BOARD_TEST_DATABASE_URL=postgresql://.../stickyboard_test \
  *     npm run test:unique-company-board-integration
  */
 import assert from "node:assert/strict";
 import { Prisma, PrismaClient } from "@prisma/client";
+import {
+  databaseNameFromUrl,
+  isDisposableTestDatabaseName,
+} from "./helpers/test-database-guard.mjs";
 
 const databaseUrl = process.env.UNIQUE_COMPANY_BOARD_TEST_DATABASE_URL ?? "";
 
-function databaseNameFromUrl(url) {
-  try {
-    const pathname = new URL(url).pathname.replace(/^\//, "");
-    return pathname.split("/")[0] ?? "";
-  } catch {
-    return "";
-  }
-}
-
 if (!databaseUrl) {
   console.error(
-    'Refusing to run: set UNIQUE_COMPANY_BOARD_TEST_DATABASE_URL to a disposable test database (name must include "test").',
+    'Refusing to run: set UNIQUE_COMPANY_BOARD_TEST_DATABASE_URL to a disposable test database (a "_" / "-" separated name segment must equal "test").',
   );
   process.exit(1);
 }
 
 const databaseName = databaseNameFromUrl(databaseUrl);
-if (!databaseName || !/test/i.test(databaseName)) {
+if (!isDisposableTestDatabaseName(databaseName)) {
   console.error(
-    `Refusing to run against database "${databaseName || "(unparsed)"}" — name must include "test".`,
+    `Refusing to run against database "${databaseName || "(unparsed)"}" — a name segment must equal "test" and no segment may be "prod", "production", or "live".`,
   );
   process.exit(1);
 }

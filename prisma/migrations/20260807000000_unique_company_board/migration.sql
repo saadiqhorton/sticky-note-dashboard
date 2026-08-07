@@ -17,31 +17,23 @@ WITH ranked AS (
 keeper AS (
   SELECT id FROM ranked WHERE rn = 1
 ),
-dupes AS (
-  SELECT id FROM ranked WHERE rn > 1
-),
-keeper_max AS (
-  SELECT COALESCE(MAX(n."zIndex"), 0) AS max_z
-  FROM "Note" n
-  WHERE n."boardId" = (SELECT id FROM keeper)
-),
-moving AS (
+renumbered AS (
   SELECT
     n.id AS note_id,
     ROW_NUMBER() OVER (
-      ORDER BY b."createdAt" ASC, b.id ASC, n."zIndex" ASC, n."createdAt" ASC, n.id ASC
-    ) AS ord
+      ORDER BY r.rn ASC, n."zIndex" ASC, n."createdAt" ASC, n.id ASC
+    ) AS new_z
   FROM "Note" n
-  INNER JOIN dupes d ON d.id = n."boardId"
-  INNER JOIN "Board" b ON b.id = n."boardId"
+  INNER JOIN ranked r ON r.id = n."boardId"
+  WHERE EXISTS (SELECT 1 FROM ranked WHERE rn > 1)
 )
 UPDATE "Note" AS n
 SET
   "boardId" = (SELECT id FROM keeper),
-  -- Remap onto a free zIndex range so notes from different boards do not share
-  -- the same stacking order after the merge (list/canvas order by zIndex only).
-  "zIndex" = (SELECT max_z FROM keeper_max) + m.ord
-FROM moving AS m
+  -- Dense 1..N renumber across the merged board. Adding to the keeper's existing
+  -- max would overflow INTEGER when a long-lived board has climbed near 2^31-1.
+  "zIndex" = m.new_z
+FROM renumbered AS m
 WHERE n.id = m.note_id;
 
 DELETE FROM "Board"

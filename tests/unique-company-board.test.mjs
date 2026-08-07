@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  databaseNameFromUrl,
+  isDisposableTestDatabaseName,
+} from "./helpers/test-database-guard.mjs";
 
 const root = resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
 let failures = 0;
@@ -44,9 +48,16 @@ test("migration merges duplicate company boards before indexing", () => {
   const sql = readFileSync(migrationPath, "utf8");
   assert.match(sql, /LOCK TABLE\s+"Board"\s+IN EXCLUSIVE MODE/i);
   assert.match(sql, /UPDATE\s+"Note"/i);
-  assert.match(sql, /"zIndex"\s*=/i);
   assert.match(sql, /DELETE FROM\s+"Board"/i);
   assert.match(sql, /WHERE\s+"type"\s*=\s*'company'/i);
+});
+
+test("migration renumbers zIndex densely instead of offsetting from the max", () => {
+  const sql = readFileSync(migrationPath, "utf8");
+  assert.match(sql, /ROW_NUMBER\(\)\s+OVER/i);
+  assert.match(sql, /"zIndex"\s*=\s*m\.new_z/);
+  assert.match(sql, /EXISTS\s*\(\s*SELECT 1 FROM ranked WHERE rn > 1\s*\)/i);
+  assert.doesNotMatch(sql, /max_z/i);
 });
 
 test("integration test requires an explicit test database URL", () => {
@@ -55,9 +66,41 @@ test("integration test requires an explicit test database URL", () => {
     "utf8",
   );
   assert.match(source, /UNIQUE_COMPANY_BOARD_TEST_DATABASE_URL/);
-  assert.match(source, /name must include "test"/);
+  assert.match(source, /isDisposableTestDatabaseName/);
   assert.match(source, /cleanupFixtures/);
   assert.doesNotMatch(source, /loadEnv/);
+});
+
+test("test database guard accepts only names with a standalone test segment", () => {
+  for (const name of ["stickyboard_test", "test", "test-db", "sticky_test_db"]) {
+    assert.equal(
+      isDisposableTestDatabaseName(name),
+      true,
+      `expected "${name}" to be accepted`,
+    );
+  }
+  for (const name of [
+    "contest_production",
+    "myapptest",
+    "latest",
+    "stickyboard",
+    "prod_test",
+    "",
+  ]) {
+    assert.equal(
+      isDisposableTestDatabaseName(name),
+      false,
+      `expected "${name}" to be rejected`,
+    );
+  }
+});
+
+test("databaseNameFromUrl extracts the database name for the guard", () => {
+  assert.equal(
+    databaseNameFromUrl("postgresql://user:pass@127.0.0.1:5432/stickyboard_test"),
+    "stickyboard_test",
+  );
+  assert.equal(databaseNameFromUrl("not-a-url"), "");
 });
 
 test("notes helpers detect Prisma unique violations", () => {
