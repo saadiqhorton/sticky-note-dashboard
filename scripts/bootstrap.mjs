@@ -1,9 +1,16 @@
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { hashPassword } from "better-auth/crypto";
 import { pathToFileURL } from "node:url";
 import { resolveAdminBootstrapCredentials } from "./lib/admin-credentials.mjs";
 
 const prisma = new PrismaClient();
+
+function isUniqueConstraintError(error) {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002"
+  );
+}
 
 async function ensureCompanyBoard() {
   const existing = await prisma.board.findFirst({
@@ -11,12 +18,23 @@ async function ensureCompanyBoard() {
   });
   if (existing) return existing;
 
-  return prisma.board.create({
-    data: {
-      type: "company",
-      name: "Team Board",
-    },
-  });
+  try {
+    return await prisma.board.create({
+      data: {
+        type: "company",
+        name: "Team Board",
+      },
+    });
+  } catch (error) {
+    // Partial unique index Board_type_company_key — concurrent creates re-find.
+    if (isUniqueConstraintError(error)) {
+      const raced = await prisma.board.findFirst({
+        where: { type: "company" },
+      });
+      if (raced) return raced;
+    }
+    throw error;
+  }
 }
 
 async function ensureAdmin(resolved) {
@@ -71,13 +89,24 @@ async function ensurePrivateBoard(userId) {
   });
   if (existing) return existing;
 
-  return prisma.board.create({
-    data: {
-      type: "private",
-      name: "My board",
-      ownerUserId: userId,
-    },
-  });
+  try {
+    return await prisma.board.create({
+      data: {
+        type: "private",
+        name: "My board",
+        ownerUserId: userId,
+      },
+    });
+  } catch (error) {
+    // ownerUserId is unique — concurrent creates lose the race and re-find.
+    if (isUniqueConstraintError(error)) {
+      const raced = await prisma.board.findFirst({
+        where: { type: "private", ownerUserId: userId },
+      });
+      if (raced) return raced;
+    }
+    throw error;
+  }
 }
 
 async function main() {
