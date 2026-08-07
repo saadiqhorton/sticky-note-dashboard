@@ -1,6 +1,13 @@
 import { prisma } from "@/lib/prisma";
-import type { Note, StickyColor } from "@prisma/client";
+import { Prisma, type Note, type StickyColor } from "@prisma/client";
 import type { StickyColorKey } from "@/lib/theme";
+
+function isUniqueConstraintError(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002"
+  );
+}
 
 export function previewFromBody(bodyJson: unknown): string {
   if (!bodyJson || typeof bodyJson !== "object") return "";
@@ -35,13 +42,24 @@ export async function getOrCreatePrivateBoard(userId: string) {
   });
   if (existing) return existing;
 
-  return prisma.board.create({
-    data: {
-      type: "private",
-      name: "My board",
-      ownerUserId: userId,
-    },
-  });
+  try {
+    return await prisma.board.create({
+      data: {
+        type: "private",
+        name: "My board",
+        ownerUserId: userId,
+      },
+    });
+  } catch (error) {
+    // ownerUserId is unique — concurrent creates lose the race and re-find.
+    if (isUniqueConstraintError(error)) {
+      const raced = await prisma.board.findFirst({
+        where: { type: "private", ownerUserId: userId },
+      });
+      if (raced) return raced;
+    }
+    throw error;
+  }
 }
 
 export async function getCompanyBoard() {
@@ -50,12 +68,23 @@ export async function getCompanyBoard() {
   });
   if (existing) return existing;
 
-  return prisma.board.create({
-    data: {
-      type: "company",
-      name: "Team Board",
-    },
-  });
+  try {
+    return await prisma.board.create({
+      data: {
+        type: "company",
+        name: "Team Board",
+      },
+    });
+  } catch (error) {
+    // Partial unique index Board_type_company_key — concurrent creates re-find.
+    if (isUniqueConstraintError(error)) {
+      const raced = await prisma.board.findFirst({
+        where: { type: "company" },
+      });
+      if (raced) return raced;
+    }
+    throw error;
+  }
 }
 
 export async function resolveBoard(

@@ -108,6 +108,7 @@ model Board {
   updatedAt   DateTime  @updatedAt
 
   @@index([type])
+  // Also enforced in SQL (partial unique): Board_type_company_key ON ("type") WHERE type = 'company'
 }
 
 model Note {
