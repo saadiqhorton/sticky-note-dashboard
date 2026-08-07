@@ -1,10 +1,11 @@
 /**
  * Integration test: partial unique index + race-safe getCompanyBoard.
  *
- * Destructive — refuses to run unless UNIQUE_COMPANY_BOARD_TEST_DATABASE_URL
- * points at a disposable database whose name segments include "test" and no
- * production-like segment (prod, staging, uat, demo, ...), and refuses to
- * delete anything while a company board still holds notes.
+ * Refuses to run unless UNIQUE_COMPANY_BOARD_TEST_DATABASE_URL points at a
+ * disposable database whose name segments include "test" and no production-like
+ * segment (prod, staging, uat, demo, ...), AND the database currently has zero
+ * company boards and zero company-board notes. Pre-existing Team boards are
+ * never deleted.
  *
  *   UNIQUE_COMPANY_BOARD_TEST_DATABASE_URL=postgresql://.../stickyboard_test \
  *     npm run test:unique-company-board-integration
@@ -12,7 +13,7 @@
 import assert from "node:assert/strict";
 import { Prisma, PrismaClient } from "@prisma/client";
 import {
-  assertNoCompanyBoardNotes,
+  assertEmptyCompanyBoardFixture,
   databaseNameFromUrl,
   isDisposableTestDatabaseName,
 } from "./helpers/test-database-guard.mjs";
@@ -41,10 +42,8 @@ const { getCompanyBoard } = await import("../src/lib/notes.ts");
 const prisma = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
 
 const createdUserIds = [];
-
-async function resetCompanyBoards() {
-  await prisma.board.deleteMany({ where: { type: "company" } });
-}
+/** @type {string | null} */
+let createdCompanyBoardId = null;
 
 async function cleanupFixtures() {
   if (createdUserIds.length > 0) {
@@ -55,16 +54,26 @@ async function cleanupFixtures() {
       where: { id: { in: createdUserIds } },
     });
   }
-  await resetCompanyBoards();
+  // Only remove the company board this test created — never pre-existing ones.
+  if (createdCompanyBoardId) {
+    await prisma.board.deleteMany({
+      where: { id: createdCompanyBoardId, type: "company" },
+    });
+    createdCompanyBoardId = null;
+  }
 }
 
 async function main() {
-  const companyBoardNoteCount = await prisma.note.count({
-    where: { board: { type: "company" } },
-  });
-  assertNoCompanyBoardNotes(companyBoardNoteCount, databaseName);
-
-  await resetCompanyBoards();
+  const [companyBoardCount, companyBoardNoteCount] = await Promise.all([
+    prisma.board.count({ where: { type: "company" } }),
+    prisma.note.count({ where: { board: { type: "company" } } }),
+  ]);
+  // Refuse before creating anything if the target is not empty of Team boards.
+  assertEmptyCompanyBoardFixture(
+    companyBoardCount,
+    companyBoardNoteCount,
+    databaseName,
+  );
 
   try {
     const results = await Promise.all(
@@ -72,6 +81,7 @@ async function main() {
     );
     const ids = new Set(results.map((board) => board.id));
     assert.equal(ids.size, 1, `expected one company board, got ${ids.size}`);
+    createdCompanyBoardId = results[0].id;
 
     const count = await prisma.board.count({ where: { type: "company" } });
     assert.equal(

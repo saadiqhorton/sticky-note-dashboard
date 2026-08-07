@@ -2,16 +2,18 @@
 -- Existing deployments may already have duplicates from find-then-create races;
 -- merge notes onto the oldest company board, then delete the extras.
 
--- Hold an exclusive lock for the rest of this migration so concurrent app traffic
--- cannot insert notes onto duplicate boards between the merge UPDATE and the DELETE
--- (those notes would otherwise survive on a board that is about to be deleted).
+-- Lock Board and Note for the rest of this migration. EXCLUSIVE on both blocks
+-- concurrent Board writes and Note inserts/updates (Note inserts take ROW EXCLUSIVE
+-- on Note and FOR KEY SHARE on Board). That closes the window between the merge
+-- UPDATE and the DELETE so a late note cannot land on a duplicate board.
+--
 -- Prisma sends this whole file as one simple query, so Postgres wraps it in an
--- implicit transaction: the lock is held until the transaction ends and the
--- migration is all-or-nothing. Without that implicit transaction this LOCK would
+-- implicit transaction: these locks are held until the transaction ends and the
+-- migration is all-or-nothing. Without that implicit transaction LOCK TABLE would
 -- raise 25P01 and abort before any destructive statement runs.
--- Do NOT wrap this file in BEGIN/COMMIT — COMMIT would release the lock early.
+-- Do NOT wrap this file in BEGIN/COMMIT — COMMIT would release the locks early.
 -- When applying this file by hand, use `psql --single-transaction`.
-LOCK TABLE "Board" IN EXCLUSIVE MODE;
+LOCK TABLE "Board", "Note" IN EXCLUSIVE MODE;
 
 WITH ranked AS (
   SELECT

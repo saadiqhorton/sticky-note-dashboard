@@ -5,6 +5,9 @@
  * "_" and "-", lowercased): a segment exactly equal to "test" is required,
  * and any production-like segment (optionally numbered, e.g. "prod2") is
  * rejected.
+ *
+ * Name checks alone cannot prove disposability — callers must also refuse to
+ * run when the target already holds company boards or company-board notes.
  */
 
 const FORBIDDEN_SEGMENT =
@@ -30,10 +33,14 @@ export function isDisposableTestDatabaseName(name) {
   return segments.includes("test");
 }
 
-export function assertNoCompanyBoardNotes(noteCount, databaseName) {
-  if (noteCount > 0) {
+export function assertEmptyCompanyBoardFixture(
+  companyBoardCount,
+  companyBoardNoteCount,
+  databaseName,
+) {
+  if (companyBoardCount > 0 || companyBoardNoteCount > 0) {
     throw new Error(
-      `Refusing to run against database "${databaseName}": it already holds ${noteCount} note(s) on a company board. This test deletes every company board; point it at an empty disposable database.`,
+      `Refusing to run against database "${databaseName}": it already holds ${companyBoardCount} company board(s) and ${companyBoardNoteCount} company-board note(s). This test may create and delete a company board; point it at an empty disposable database.`,
     );
   }
 }

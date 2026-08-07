@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  assertNoCompanyBoardNotes,
+  assertEmptyCompanyBoardFixture,
   databaseNameFromUrl,
   isDisposableTestDatabaseName,
 } from "./helpers/test-database-guard.mjs";
@@ -47,7 +47,10 @@ test("migration adds partial unique index for company boards", () => {
 
 test("migration merges duplicate company boards before indexing", () => {
   const sql = readFileSync(migrationPath, "utf8");
-  assert.match(sql, /LOCK TABLE\s+"Board"\s+IN EXCLUSIVE MODE/i);
+  assert.match(
+    sql,
+    /LOCK TABLE\s+"Board",\s*"Note"\s+IN EXCLUSIVE MODE/i,
+  );
   assert.match(sql, /UPDATE\s+"Note"/i);
   assert.match(sql, /DELETE FROM\s+"Board"/i);
   assert.match(sql, /WHERE\s+"type"\s*=\s*'company'/i);
@@ -77,18 +80,24 @@ test("migration relies on the implicit transaction and adds no BEGIN/COMMIT", ()
     .map((line) => line.replace(/--.*$/, ""))
     .join("\n");
   assert.doesNotMatch(withoutComments, /\bBEGIN\b|\bCOMMIT\b/i);
-  assert.match(sql, /LOCK TABLE\s+"Board"\s+IN EXCLUSIVE MODE/i);
+  assert.match(
+    withoutComments,
+    /LOCK TABLE\s+"Board",\s*"Note"\s+IN EXCLUSIVE MODE/i,
+  );
 });
 
-test("integration test requires an explicit test database URL", () => {
+test("integration test requires an empty disposable test database", () => {
   const source = readFileSync(
     resolve(root, "tests/unique-company-board.integration.mjs"),
     "utf8",
   );
   assert.match(source, /UNIQUE_COMPANY_BOARD_TEST_DATABASE_URL/);
   assert.match(source, /isDisposableTestDatabaseName/);
-  assert.match(source, /assertNoCompanyBoardNotes/);
+  assert.match(source, /assertEmptyCompanyBoardFixture/);
+  assert.match(source, /createdCompanyBoardId/);
   assert.match(source, /cleanupFixtures/);
+  assert.doesNotMatch(source, /resetCompanyBoards/);
+  assert.doesNotMatch(source, /board\.deleteMany\(\s*\{\s*where:\s*\{\s*type:\s*"company"/);
   assert.doesNotMatch(source, /note\.deleteMany/);
   assert.doesNotMatch(source, /loadEnv/);
 });
@@ -125,12 +134,18 @@ test("test database guard accepts only names with a standalone test segment", ()
   }
 });
 
-test("assertNoCompanyBoardNotes throws only when company-board notes exist", () => {
+test("assertEmptyCompanyBoardFixture throws when company boards or notes exist", () => {
   assert.throws(
-    () => assertNoCompanyBoardNotes(3, "stickyboard_test"),
-    /already holds 3 note\(s\)/,
+    () => assertEmptyCompanyBoardFixture(1, 0, "stickyboard_test"),
+    /already holds 1 company board/,
   );
-  assert.doesNotThrow(() => assertNoCompanyBoardNotes(0, "stickyboard_test"));
+  assert.throws(
+    () => assertEmptyCompanyBoardFixture(0, 2, "stickyboard_test"),
+    /2 company-board note/,
+  );
+  assert.doesNotThrow(() =>
+    assertEmptyCompanyBoardFixture(0, 0, "stickyboard_test"),
+  );
 });
 
 test("databaseNameFromUrl extracts the database name for the guard", () => {
