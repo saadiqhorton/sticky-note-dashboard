@@ -42,9 +42,22 @@ test("migration adds partial unique index for company boards", () => {
 
 test("migration merges duplicate company boards before indexing", () => {
   const sql = readFileSync(migrationPath, "utf8");
+  assert.match(sql, /LOCK TABLE\s+"Board"\s+IN EXCLUSIVE MODE/i);
   assert.match(sql, /UPDATE\s+"Note"/i);
+  assert.match(sql, /"zIndex"\s*=/i);
   assert.match(sql, /DELETE FROM\s+"Board"/i);
   assert.match(sql, /WHERE\s+"type"\s*=\s*'company'/i);
+});
+
+test("integration test requires an explicit test database URL", () => {
+  const source = readFileSync(
+    resolve(root, "tests/unique-company-board.integration.mjs"),
+    "utf8",
+  );
+  assert.match(source, /UNIQUE_COMPANY_BOARD_TEST_DATABASE_URL/);
+  assert.match(source, /name must include "test"/);
+  assert.match(source, /cleanupFixtures/);
+  assert.doesNotMatch(source, /loadEnv/);
 });
 
 test("notes helpers detect Prisma unique violations", () => {
