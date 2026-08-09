@@ -20,6 +20,7 @@
     "test:signup-disabled": "tsx tests/signup-disabled.integration.ts",
     "test:invite-email-hint": "tsx tests/invite-email-hint.integration.ts",
     "test:purge-note-trashed-only": "node tests/purge-note-trashed-only.test.mjs",
+    "test:block-writes-trashed-notes": "node tests/block-writes-trashed-notes.test.mjs",
     "test:unique-company-board": "node tests/unique-company-board.test.mjs",
     "test:unique-company-board-integration": "tsx tests/unique-company-board.integration.mjs"
   },
