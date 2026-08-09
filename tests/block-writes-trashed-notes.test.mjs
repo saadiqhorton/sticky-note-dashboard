@@ -37,9 +37,27 @@ test("getOwnedNote only resolves non-trashed notes", () => {
   );
 });
 
-test("PATCH uses getOwnedNote before updating", () => {
-  assert.match(patchSource, /getOwnedNote\s*\(/);
-  assert.match(patchSource, /prisma\.note\.update/);
+test("PATCH looks up owned note and returns before updating", () => {
+  const lookupIdx = patchSource.search(/await\s+getOwnedNote\s*\(/);
+  const updateIdx = patchSource.search(/prisma\.note\.update\s*\(/);
+  assert.ok(lookupIdx >= 0, "getOwnedNote call missing");
+  assert.ok(updateIdx >= 0, "prisma.note.update missing");
+  assert.ok(
+    lookupIdx < updateIdx,
+    "getOwnedNote must precede prisma.note.update",
+  );
+
+  // Missing/trashed lookup must short-circuit before the write.
+  const between = patchSource.slice(lookupIdx, updateIdx);
+  assert.match(
+    between,
+    /if\s*\(\s*"error"\s+in\s+result\s*&&\s*result\.error\s*\)\s*return\s+result\.error/,
+  );
+  assert.equal(
+    (between.match(/prisma\.note\.update\s*\(/g) || []).length,
+    0,
+    "no note update may run before the getOwnedNote error return",
+  );
 });
 
 if (failures > 0) {
