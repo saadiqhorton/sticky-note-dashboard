@@ -39,12 +39,12 @@ test("getOwnedNote only resolves non-trashed notes", () => {
 
 test("PATCH looks up owned note and returns before updating", () => {
   const lookupIdx = patchSource.search(/await\s+getOwnedNote\s*\(/);
-  const updateIdx = patchSource.search(/prisma\.note\.update\s*\(/);
+  const updateIdx = patchSource.search(/prisma\.note\.updateMany\s*\(/);
   assert.ok(lookupIdx >= 0, "getOwnedNote call missing");
-  assert.ok(updateIdx >= 0, "prisma.note.update missing");
+  assert.ok(updateIdx >= 0, "prisma.note.updateMany missing");
   assert.ok(
     lookupIdx < updateIdx,
-    "getOwnedNote must precede prisma.note.update",
+    "getOwnedNote must precede prisma.note.updateMany",
   );
 
   // Missing/trashed lookup must short-circuit before the write.
@@ -54,10 +54,18 @@ test("PATCH looks up owned note and returns before updating", () => {
     /if\s*\(\s*"error"\s+in\s+result\s*&&\s*result\.error\s*\)\s*return\s+result\.error/,
   );
   assert.equal(
-    (between.match(/prisma\.note\.update\s*\(/g) || []).length,
+    (between.match(/prisma\.note\.updateMany\s*\(/g) || []).length,
     0,
     "no note update may run before the getOwnedNote error return",
   );
+});
+
+test("PATCH write re-checks deletedAt and handles zero-count", () => {
+  assert.match(
+    patchSource,
+    /updateMany\s*\(\s*\{[\s\S]*deletedAt\s*:\s*null/,
+  );
+  assert.match(patchSource, /updated\.count\s*===\s*0/);
 });
 
 if (failures > 0) {
