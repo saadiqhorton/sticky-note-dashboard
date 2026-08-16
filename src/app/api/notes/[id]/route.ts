@@ -12,8 +12,9 @@ import { clampNotePositionForStorage } from "@/lib/note-bounds";
 type Params = { params: Promise<{ id: string }> };
 
 async function getOwnedNote(noteId: string, userId: string) {
-  const note = await prisma.note.findUnique({
-    where: { id: noteId },
+  // Soft-deleted notes are only mutable via the trash restore/purge flow.
+  const note = await prisma.note.findFirst({
+    where: { id: noteId, deletedAt: null },
     include: { board: true },
   });
   if (!note) return { error: NextResponse.json({ error: "Not found" }, { status: 404 }) };
@@ -53,8 +54,8 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     height: nextHeight,
   });
 
-  const note = await prisma.note.update({
-    where: { id: existing.id },
+  const updated = await prisma.note.updateMany({
+    where: { id: existing.id, deletedAt: null },
     data: {
       title: body.title ?? existing.title,
       ...(body.preview !== undefined
@@ -70,6 +71,15 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       updatedById: user.id,
     },
   });
+
+  if (updated.count === 0) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  const note = await prisma.note.findUnique({ where: { id: existing.id } });
+  if (!note) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
   return NextResponse.json({
     note: {
