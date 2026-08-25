@@ -144,6 +144,9 @@ function BoardAppInner({
   const dirtyNoteIdRef = useRef<string | null>(null);
   const notesRef = useRef(notes);
   const openNoteIdRef = useRef<string | null>(null);
+  // Tracks whether this effect has run once, so the server-rendered notes are
+  // only used for the very first paint and not reused after a board switch.
+  const firstBoardRef = useRef(true);
   const [clientId, setClientId] = useState<string | null>(null);
   notesRef.current = notes;
   openNoteIdRef.current = openState?.note.id ?? null;
@@ -179,10 +182,20 @@ function BoardAppInner({
 
   // Initial / board-switch load
   useEffect(() => {
-    setNotes(initialNotes);
+    if (firstBoardRef.current) {
+      // First paint: show the server-rendered notes for the current board
+      // immediately instead of waiting on the fetch.
+      setNotes(initialNotes);
+      firstBoardRef.current = false;
+    } else {
+      // Board param changed: clear the previous board's notes so we don't
+      // briefly show stale notes while the new board's fetch is running.
+      // The loading state (notes.length === 0) covers the gap.
+      setNotes([]);
+    }
     setEditingByNoteId({});
     void syncNotes({ showLoading: true });
-  }, [board, syncNotes]); // eslint-disable-line react-hooks/exhaustive-deps -- initialNotes only for first paint
+  }, [board, syncNotes, initialNotes]); // initialNotes only used for first paint
 
   // Phase 1: poll + refetch when tab becomes visible
   useEffect(() => {
