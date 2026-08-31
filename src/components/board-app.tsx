@@ -248,6 +248,9 @@ function BoardAppInner({
   useEffect(() => {
     if (!clientId) return;
     const selfClientId = clientId;
+    // Seq is per-board (per-room); reset so a prior board's high seq cannot
+    // suppress this board's authoritative note.snapshot.
+    lastEventSeqRef.current = null;
 
     // Track the highest SSE event id applied so a late note.snapshot (whose
     // data.seq was captured before these events) can be skipped.
@@ -264,6 +267,11 @@ function BoardAppInner({
     const source = new EventSource(
       `/api/realtime/stream?board=${board}&clientId=${encodeURIComponent(selfClientId)}`,
     );
+    // The server-side room (and its seq) can be swept and recreated; reset on
+    // every (re)connect so the first snapshot is always applied.
+    source.addEventListener("open", () => {
+      lastEventSeqRef.current = null;
+    });
 
     function onSnapshot(ev: MessageEvent) {
       try {
