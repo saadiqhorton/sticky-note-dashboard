@@ -171,49 +171,29 @@ async function restoreViaTrashForm(cookie, noteId) {
   }
   const html = await page.text();
 
-  // Collect the distinct server-action ids rendered on /trash (each trashed
-  // note renders two inputs: one restoreNote, one purgeNote).
-  const actionIds = new Set();
-  for (const match of html.matchAll(/name="\$ACTION_([^":]+):0" value="([^"]*)"/g)) {
-    let meta;
-    try {
-      meta = JSON.parse(decodeHtmlEntities(match[2]));
-    } catch {
-      continue; // unparseable metadata — ignore this input
-    }
-    if (meta && typeof meta.id === "string") actionIds.add(meta.id);
+  // Each trashed note renders two server-action forms in document order:
+  // restoreNote first, then purgeNote. Take the first form bound to the
+  // target note and use its action hash (the "id" inside the :0 metadata —
+  // the field index is not the action id). (Probing is unreliable since
+  // main's purgeNote uses deleteMany, which no-ops with 200 on a nonexistent
+  // id — identical to restoreNote's quiet return.)
+  const byField = {};
+  for (const match of html.matchAll(/name="\$ACTION_([^":]+):(\d+)" value="([^"]*)"/g)) {
+    const [, field, idx, value] = match;
+    (byField[field] ??= {})[idx] = decodeHtmlEntities(value);
   }
-  if (actionIds.size === 0) {
-    console.warn("WARN: no $ACTION_<n>:0 inputs found in /trash HTML — skipping restore driver");
+  const targetField = Object.entries(byField).find(
+    ([, f]) => f["1"] && f["1"].includes(JSON.stringify(noteId)),
+  );
+  if (!targetField) {
+    console.warn("WARN: no restore form for this note in /trash HTML — skipping restore driver");
     return false;
   }
-
-  // Probe with a nonexistent note id: restoreNote quiet 200, purgeNote 500.
-  const fakeNoteId = "00000000000000000000000000";
-  const okIds = [];
-  for (const id of actionIds) {
-    let status;
-    try {
-      const r = await fetch(`${BASE}/trash`, {
-        method: "POST",
-        headers: {
-          cookie,
-          "Next-Action": id,
-          "Content-Type": "text/plain;charset=UTF-8",
-        },
-        body: JSON.stringify([fakeNoteId]),
-        redirect: "manual",
-      });
-      status = r.status;
-    } catch (err) {
-      console.warn(`WARN: probe for action id ${id} failed: ${err.message}`);
-    }
-    if (status === 200) okIds.push(id);
-  }
-  if (okIds.length !== 1) {
-    console.warn(
-      `WARN: expected exactly one restoreNote action id, found ${okIds.length}${okIds.length ? ` (${okIds.join(", ")})` : ""} — skipping restore driver`,
-    );
+  let restoreId;
+  try {
+    restoreId = JSON.parse(targetField[1]["0"]).id;
+  } catch {
+    console.warn("WARN: unparseable action metadata in /trash HTML — skipping restore driver");
     return false;
   }
 
@@ -221,7 +201,7 @@ async function restoreViaTrashForm(cookie, noteId) {
     method: "POST",
     headers: {
       cookie,
-      "Next-Action": okIds[0],
+      "Next-Action": restoreId,
       "Content-Type": "text/plain;charset=UTF-8",
     },
     body: JSON.stringify([noteId]),
