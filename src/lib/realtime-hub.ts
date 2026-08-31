@@ -61,7 +61,6 @@ function broadcast(boardId: string, payload: ServerEvent) {
   room.seq += 1;
   const seq = room.seq;
   for (const sub of room.subscribers.values()) {
-    sub.lastSeenAt = Date.now();
     try {
       sub.send(payload, seq);
     } catch {
@@ -183,10 +182,27 @@ export function subscribeRealtime(
  */
 export function touchSubscriber(boardId: string, subId: string): boolean {
   const room = rooms.get(boardId);
-  const sub = room?.subscribers.get(subId);
-  if (!sub) return false;
-  sub.lastSeenAt = Date.now();
-  return true;
+  return room?.subscribers.has(subId) ?? false;
+}
+
+/**
+ * Client-initiated liveness: a healthy tab pings every 30s, so its
+ * subscriber's lastSeenAt stays fresh; a blackholed connection stops pinging
+ * and the TTL sweep evicts it. Room broadcasts and server keepalives must
+ * NOT refresh lastSeenAt — they cannot distinguish a dead socket from a live
+ * one (enqueue buffers on blackholed streams).
+ */
+export function pingSubscriber(boardId: string, clientId: string): boolean {
+  const room = rooms.get(boardId);
+  if (!room) return false;
+  let found = false;
+  for (const sub of room.subscribers.values()) {
+    if (sub.clientId === clientId) {
+      sub.lastSeenAt = Date.now();
+      found = true;
+    }
+  }
+  return found;
 }
 
 export function unsubscribeRealtime(boardId: string, subId: string) {

@@ -123,14 +123,19 @@ function peerLabel(editor: PresenceEditor, selfUserId: string): string {
 async function postPresence(
   board: string,
   clientId: string,
-  action: "editing" | "idle",
-  noteId: string,
+  action: "editing" | "idle" | "ping",
+  noteId?: string,
 ) {
   try {
     await fetch("/api/presence", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ board, action, noteId, clientId }),
+      body: JSON.stringify({
+        board,
+        action,
+        ...(noteId ? { noteId } : {}),
+        clientId,
+      }),
       keepalive: action === "idle",
     });
   } catch {
@@ -272,6 +277,11 @@ function BoardAppInner({
     source.addEventListener("open", () => {
       lastEventSeqRef.current = null;
     });
+    // Connection liveness: the server evicts subscribers that stop pinging
+    // (blackholed sockets never fire abort/cancel). Ping every 30s.
+    const ping = window.setInterval(() => {
+      void postPresence(board, selfClientId, "ping");
+    }, 30000);
 
     function onSnapshot(ev: MessageEvent) {
       try {
@@ -482,6 +492,7 @@ function BoardAppInner({
         onNoteRestored as EventListener,
       );
       source.close();
+      window.clearInterval(ping);
       const openId = openNoteIdRef.current;
       if (openId) {
         void postPresence(board, selfClientId, "idle", openId);
