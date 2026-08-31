@@ -13,8 +13,9 @@ import { broadcastNote } from "@/lib/realtime-hub";
 type Params = { params: Promise<{ id: string }> };
 
 async function getOwnedNote(noteId: string, userId: string) {
-  const note = await prisma.note.findUnique({
-    where: { id: noteId },
+  // Soft-deleted notes are only mutable via the trash restore/purge flow.
+  const note = await prisma.note.findFirst({
+    where: { id: noteId, deletedAt: null },
     include: { board: true },
   });
   if (!note) return { error: NextResponse.json({ error: "Not found" }, { status: 404 }) };
@@ -86,7 +87,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   // soft-deleted, and (when the client sent a baseline) its updatedAt still
   // matches. A trashed note can therefore never be resurrected by a PATCH,
   // and two concurrent PATCHes cannot both pass the stale check.
-  const updateResult = await prisma.note.updateMany({
+  const updated = await prisma.note.updateMany({
     where: {
       id: existing.id,
       deletedAt: null,
@@ -97,7 +98,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     data,
   });
 
-  if (updateResult.count === 0) {
+  if (updated.count === 0) {
     // Either the note is gone/trashed, or a peer wrote first.
     const current = await prisma.note.findUnique({
       where: { id: existing.id },

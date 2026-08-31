@@ -4,10 +4,11 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: stickyboard
-      POSTGRES_PASSWORD: stickyboard
+      # Required — no default. Generate with: openssl rand -hex 32
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: stickyboard
-    ports:
-      - "5433:5432"
+    # Not published to the host. App reaches Postgres on the Compose network
+    # only (db:5432). For local `npm run dev`, use docker-compose.dev.yml.
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -22,12 +23,18 @@ services:
     ports:
       - "3000:3000"
     environment:
-      DATABASE_URL: postgresql://stickyboard:stickyboard@db:5432/stickyboard
-      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-change-me-to-a-long-random-string}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      DATABASE_URL: postgresql://stickyboard:${POSTGRES_PASSWORD}@db:5432/stickyboard
+      # Optional. Leave unset and Docker generates + persists a unique secret
+      # on first boot. If you set one yourself, it must be a strong random
+      # value — known placeholders are rejected at startup.
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
       APP_URL: ${APP_URL:-http://localhost:3000}
-      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme123}
+      # Required for first-boot admin creation. Production bootstrap fails if
+      # these are unset or the password is weak (see scripts/bootstrap.mjs).
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       ADMIN_NAME: ${ADMIN_NAME:-Admin}
       UPLOAD_DIR: /data/uploads
     volumes:

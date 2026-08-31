@@ -164,6 +164,10 @@ function BoardAppInner({
   const lastEventSeqRef = useRef<number | null>(null);
   const notesRef = useRef(notes);
   const openNoteIdRef = useRef<string | null>(null);
+  // Tracks the board whose server-rendered notes are currently displayed.
+  // `null` until the first paint; afterwards it holds the last-seen `board`
+  // value so we only clear the canvas when the board actually changes.
+  const displayedBoardRef = useRef<string | null>(null);
   const [clientId, setClientId] = useState<string | null>(null);
   notesRef.current = notes;
   openNoteIdRef.current = openState?.note.id ?? null;
@@ -207,11 +211,24 @@ function BoardAppInner({
 
   // Initial / board-switch load
   useEffect(() => {
-    setNotes(initialNotes);
+    if (displayedBoardRef.current === null) {
+      // First paint: show the server-rendered notes for the current board
+      // immediately instead of waiting on the fetch.
+      setNotes(initialNotes);
+    } else if (displayedBoardRef.current !== board) {
+      // Board param changed: clear the previous board's notes so we don't
+      // briefly show stale notes while the new board's fetch is running.
+      // The loading state (notes.length === 0) covers the gap.
+      setNotes([]);
+    }
+    // `initialNotes` is intentionally omitted from the deps: page.tsx rebuilds
+    // it on every soft navigation (notes.map(serializeNote)), so including it
+    // would re-trigger this effect for unrelated view toggles.
+    displayedBoardRef.current = board;
     setEditingByNoteId({});
     setViewerClientIds(new Set());
     void syncNotes({ showLoading: true });
-  }, [board, syncNotes]); // eslint-disable-line react-hooks/exhaustive-deps -- initialNotes only for first paint
+  }, [board, syncNotes]); // eslint-disable-line react-hooks/exhaustive-deps -- initialNotes only used for first paint
 
   // Refetch when the tab becomes visible (backstop; live sync is push-based)
   useEffect(() => {

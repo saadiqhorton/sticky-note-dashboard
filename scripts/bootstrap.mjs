@@ -1,7 +1,16 @@
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { hashPassword } from "better-auth/crypto";
+import { pathToFileURL } from "node:url";
+import { resolveAdminBootstrapCredentials } from "./lib/admin-credentials.mjs";
 
 const prisma = new PrismaClient();
+
+function isUniqueConstraintError(error) {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002"
+  );
+}
 
 async function ensureCompanyBoard() {
   const existing = await prisma.board.findFirst({
@@ -9,23 +18,34 @@ async function ensureCompanyBoard() {
   });
   if (existing) return existing;
 
-  return prisma.board.create({
-    data: {
-      type: "company",
-      name: "Team Board",
-    },
-  });
+  try {
+    return await prisma.board.create({
+      data: {
+        type: "company",
+        name: "Team Board",
+      },
+    });
+  } catch (error) {
+    // Partial unique index Board_type_company_key — concurrent creates re-find.
+    if (isUniqueConstraintError(error)) {
+      const raced = await prisma.board.findFirst({
+        where: { type: "company" },
+      });
+      if (raced) return raced;
+    }
+    throw error;
+  }
 }
 
-async function ensureAdmin() {
-  const email = process.env.ADMIN_EMAIL;
-  const password = process.env.ADMIN_PASSWORD;
+async function ensureAdmin(resolved) {
   const name = process.env.ADMIN_NAME ?? "Admin";
 
-  if (!email || !password) {
+  if (resolved.action === "skip") {
     console.log("Skipping admin bootstrap: ADMIN_EMAIL / ADMIN_PASSWORD not set");
     return;
   }
+
+  const { email, password } = resolved;
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
@@ -69,26 +89,52 @@ async function ensurePrivateBoard(userId) {
   });
   if (existing) return existing;
 
-  return prisma.board.create({
-    data: {
-      type: "private",
-      name: "My board",
-      ownerUserId: userId,
-    },
-  });
+  try {
+    return await prisma.board.create({
+      data: {
+        type: "private",
+        name: "My board",
+        ownerUserId: userId,
+      },
+    });
+  } catch (error) {
+    // ownerUserId is unique — concurrent creates lose the race and re-find.
+    if (isUniqueConstraintError(error)) {
+      const raced = await prisma.board.findFirst({
+        where: { type: "private", ownerUserId: userId },
+      });
+      if (raced) return raced;
+    }
+    throw error;
+  }
 }
 
 async function main() {
+  // Fail closed in production before touching the database so missing/weak
+  // admin credentials never reach Postgres (and can be evidence-tested offline).
+  const resolved = resolveAdminBootstrapCredentials({
+    email: process.env.ADMIN_EMAIL,
+    password: process.env.ADMIN_PASSWORD,
+  });
+  if (resolved.error) {
+    throw new Error(resolved.error);
+  }
+
   await ensureCompanyBoard();
-  await ensureAdmin();
+  await ensureAdmin(resolved);
 }
 
-main()
-  .then(async () => {
-    await prisma.$disconnect();
-  })
-  .catch(async (error) => {
-    console.error(error);
-    await prisma.$disconnect();
-    process.exit(1);
-  });
+const isMain =
+  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (isMain) {
+  main()
+    .then(async () => {
+      await prisma.$disconnect();
+    })
+    .catch(async (error) => {
+      console.error(error);
+      await prisma.$disconnect();
+      process.exit(1);
+    });
+}
