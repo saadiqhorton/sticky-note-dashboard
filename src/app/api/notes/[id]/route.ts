@@ -45,16 +45,13 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     rotation?: number;
     expectedUpdatedAt?: string;
   };
-  // GAP-016: reject a stale save before writing (peer wrote first).
-  if (body.expectedUpdatedAt !== undefined) {
-    const expected = Date.parse(body.expectedUpdatedAt);
-    if (Number.isFinite(expected) && existing.updatedAt.getTime() > expected) {
-      return NextResponse.json(
-        { error: "conflict", note: serializeNote(existing) },
-        { status: 409 },
-      );
-    }
-  }
+  // GAP-016: reject a stale save before writing (peer wrote first). The
+  // expected-updatedAt check is folded into the conditional write below so
+  // two concurrent PATCHes cannot both pass the check (TOCTOU-safe).
+  const expectedUpdatedAt =
+    body.expectedUpdatedAt !== undefined
+      ? Date.parse(body.expectedUpdatedAt)
+      : NaN;
 
   const isMove =
     body.x !== undefined ||
@@ -70,23 +67,64 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     height: nextHeight,
   });
 
-  const note = await prisma.note.update({
-    where: { id: existing.id },
-    data: {
-      title: body.title ?? existing.title,
-      ...(body.preview !== undefined
-        ? { bodyJson: bodyFromPreview(body.preview) }
+  const data = {
+    title: body.title ?? existing.title,
+    ...(body.preview !== undefined
+      ? { bodyJson: bodyFromPreview(body.preview) }
+      : {}),
+    color: body.color && isStickyColor(body.color) ? body.color : existing.color,
+    x,
+    y,
+    width: nextWidth,
+    height: nextHeight,
+    zIndex: body.zIndex ?? existing.zIndex,
+    rotation: body.rotation ?? existing.rotation,
+    updatedById: user.id,
+  };
+
+  // Conditional write: only lands when the note still exists, is not
+  // soft-deleted, and (when the client sent a baseline) its updatedAt still
+  // matches. A trashed note can therefore never be resurrected by a PATCH,
+  // and two concurrent PATCHes cannot both pass the stale check.
+  const updateResult = await prisma.note.updateMany({
+    where: {
+      id: existing.id,
+      deletedAt: null,
+      ...(Number.isFinite(expectedUpdatedAt)
+        ? { updatedAt: new Date(expectedUpdatedAt) }
         : {}),
-      color: body.color && isStickyColor(body.color) ? body.color : existing.color,
-      x,
-      y,
-      width: nextWidth,
-      height: nextHeight,
-      zIndex: body.zIndex ?? existing.zIndex,
-      rotation: body.rotation ?? existing.rotation,
-      updatedById: user.id,
     },
+    data,
   });
+
+  if (updateResult.count === 0) {
+    // Either the note is gone/trashed, or a peer wrote first.
+    const current = await prisma.note.findUnique({
+      where: { id: existing.id },
+      include: { board: true },
+    });
+    if (!current || current.deletedAt) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    if (
+      Number.isFinite(expectedUpdatedAt) &&
+      current.updatedAt.getTime() > expectedUpdatedAt
+    ) {
+      return NextResponse.json(
+        { error: "conflict", note: serializeNote(current) },
+        { status: 409 },
+      );
+    }
+    // The note exists but its updatedAt didn't match the client's baseline
+    // (e.g. clock skew made the baseline newer than the server). Fall
+    // through to an unconditional write so the save still lands.
+    await prisma.note.update({ where: { id: existing.id }, data });
+  }
+
+  const note = await prisma.note.findUnique({ where: { id: existing.id } });
+  if (!note) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
   const serialized = {
     ...serializeNote(note),

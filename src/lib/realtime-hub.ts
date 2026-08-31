@@ -9,7 +9,7 @@ type Subscriber = {
   userId: string;
   userName: string;
   clientId: string;
-  send: (payload: ServerEvent) => void;
+  send: (payload: ServerEvent, seq: number) => void;
   /** Last time the hub pushed to this subscriber (event or keepalive). */
   lastSeenAt: number;
 };
@@ -21,6 +21,8 @@ type Room = {
   subscribers: Map<string, Subscriber>;
   /** Last activity on the room (bookkeeping for the TTL sweep). */
   lastSeenAt: number;
+  /** Monotonic per-room sequence, incremented on every broadcast. */
+  seq: number;
 };
 
 const PRESENCE_TTL_MS = 90_000;
@@ -31,9 +33,9 @@ const globalForRealtime = globalThis as unknown as {
   __stickyRealtimeSweepStarted?: boolean;
 };
 
-const rooms =
+const rooms: Map<string, Room> =
   globalForRealtime.__stickyRealtimeRoomsV2 ??
-  (globalForRealtime.__stickyRealtimeRoomsV2 = new Map());
+  (globalForRealtime.__stickyRealtimeRoomsV2 = new Map<string, Room>());
 
 function getRoom(boardId: string): Room {
   let room = rooms.get(boardId);
@@ -46,6 +48,7 @@ function getRoom(boardId: string): Room {
       byClientId: new Map(),
       subscribers: new Map(),
       lastSeenAt: Date.now(),
+      seq: 0,
     };
     rooms.set(boardId, room);
   }
@@ -55,14 +58,21 @@ function getRoom(boardId: string): Room {
 function broadcast(boardId: string, payload: ServerEvent) {
   const room = getRoom(boardId);
   room.lastSeenAt = Date.now();
+  room.seq += 1;
+  const seq = room.seq;
   for (const sub of room.subscribers.values()) {
     sub.lastSeenAt = Date.now();
     try {
-      sub.send(payload);
+      sub.send(payload, seq);
     } catch {
       // Drop broken subscribers on next unsubscribe
     }
   }
+}
+
+/** Current broadcast sequence for a room (0 when the room has no events yet). */
+export function currentSeq(boardId: string): number {
+  return rooms.get(boardId)?.seq ?? 0;
 }
 
 /** Evict presence entries and subscribers whose lastSeenAt is older than the TTL. */
@@ -119,7 +129,7 @@ export function subscribeRealtime(
   userId: string,
   userName: string,
   clientId: string,
-  send: (payload: ServerEvent) => void,
+  send: (payload: ServerEvent, seq: number) => void,
 ): { subId: string; snapshot: { editors: PresenceEditor[] } } {
   const room = getRoom(boardId);
   const subId = `${clientId}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
@@ -132,9 +142,28 @@ export function subscribeRealtime(
     lastSeenAt: Date.now(),
   });
 
-  // A reconnecting tab keeps its presence entry alive.
+  // A reconnecting tab keeps its presence entry alive. If it was editing a
+  // note, carry the noteId onto the fresh entry and re-announce editing so
+  // peers keep seeing the editor (a plain join would drop the noteId).
   const prior = room.byClientId.get(clientId);
-  if (prior) prior.lastSeenAt = Date.now();
+  if (prior) {
+    prior.lastSeenAt = Date.now();
+    if (prior.noteId) {
+      const editor: PresenceEditor = {
+        clientId,
+        userId: prior.userId,
+        userName: prior.userName,
+        noteId: prior.noteId,
+      };
+      room.byClientId.set(clientId, { ...editor, lastSeenAt: Date.now() });
+      broadcast(boardId, { event: "presence.editing", data: editor });
+      startSweep();
+      return {
+        subId,
+        snapshot: { editors: Array.from(room.byClientId.values()) },
+      };
+    }
+  }
 
   broadcast(boardId, {
     event: "presence.join",
@@ -166,6 +195,15 @@ export function unsubscribeRealtime(boardId: string, subId: string) {
   const sub = room.subscribers.get(subId);
   room.subscribers.delete(subId);
   if (!sub) return;
+
+  // Reconnect overlap: another subscriber for the same clientId is still
+  // connected, so the tab is still live — keep its presence entry and stay
+  // silent. Only clear presence when the last subscriber for the clientId
+  // goes away.
+  const stillConnected = Array.from(room.subscribers.values()).some(
+    (s: Subscriber) => s.clientId === sub.clientId,
+  );
+  if (stillConnected) return;
 
   // Clear this tab's presence when its SSE connection drops.
   const prior = room.byClientId.get(sub.clientId);

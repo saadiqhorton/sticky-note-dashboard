@@ -81,6 +81,27 @@ function mergeRemoteNotes(
   return merged;
 }
 
+/**
+ * In-place per-note merge for single-note remote events (note.updated /
+ * note.moved). Unlike mergeRemoteNotes, this keeps every local note and only
+ * replaces the one that changed, so a live edit can never wipe the board.
+ */
+function applyRemoteNote(
+  local: CanvasNote[],
+  note: CanvasNote,
+  dirtyNoteId: string | null,
+): CanvasNote[] {
+  return local.map((n) =>
+    n.id === note.id
+      ? dirtyNoteId === note.id
+        ? n
+        : Date.parse(note.updatedAt || "") >= Date.parse(n.updatedAt || "")
+          ? note
+          : n
+      : n,
+  );
+}
+
 /** noteId → peer editor (excludes this browser tab only). */
 function mapFromEditors(
   editors: PresenceEditor[],
@@ -140,6 +161,7 @@ function BoardAppInner({
   );
   const [conflict, setConflict] = useState<string | null>(null);
   const dirtyNoteIdRef = useRef<string | null>(null);
+  const lastEventSeqRef = useRef<number | null>(null);
   const notesRef = useRef(notes);
   const openNoteIdRef = useRef<string | null>(null);
   const [clientId, setClientId] = useState<string | null>(null);
@@ -210,6 +232,18 @@ function BoardAppInner({
     if (!clientId) return;
     const selfClientId = clientId;
 
+    // Track the highest SSE event id applied so a late note.snapshot (whose
+    // data.seq was captured before these events) can be skipped.
+    function trackSeq(ev: MessageEvent) {
+      const seq = Number(ev.lastEventId);
+      if (
+        Number.isFinite(seq) &&
+        (lastEventSeqRef.current == null || seq > lastEventSeqRef.current)
+      ) {
+        lastEventSeqRef.current = seq;
+      }
+    }
+
     const source = new EventSource(
       `/api/realtime/stream?board=${board}&clientId=${encodeURIComponent(selfClientId)}`,
     );
@@ -227,6 +261,7 @@ function BoardAppInner({
     }
 
     function onEditing(ev: MessageEvent) {
+      trackSeq(ev);
       try {
         const editor = JSON.parse(ev.data) as PresenceEditor;
         setViewerClientIds((prev) => {
@@ -254,6 +289,7 @@ function BoardAppInner({
     }
 
     function onIdle(ev: MessageEvent) {
+      trackSeq(ev);
       try {
         const data = JSON.parse(ev.data) as {
           noteId: string;
@@ -279,6 +315,7 @@ function BoardAppInner({
     }
 
     function onLeave(ev: MessageEvent) {
+      trackSeq(ev);
       try {
         const data = JSON.parse(ev.data) as { clientId: string };
         setViewerClientIds((prev) => {
@@ -301,7 +338,20 @@ function BoardAppInner({
 
     function onNoteSnapshot(ev: MessageEvent) {
       try {
-        const data = JSON.parse(ev.data) as { notes: CanvasNote[] };
+        const data = JSON.parse(ev.data) as {
+          notes: CanvasNote[];
+          seq?: number;
+        };
+        if (
+          lastEventSeqRef.current != null &&
+          data.seq != null &&
+          lastEventSeqRef.current > data.seq
+        ) {
+          // Snapshot predates events already applied — skip so it cannot
+          // revert them. Fresh connections still apply the authoritative
+          // snapshot (reconnect-healing path).
+          return;
+        }
         setNotes((prev) =>
           mergeRemoteNotes(prev, data.notes ?? [], dirtyNoteIdRef.current),
         );
@@ -311,6 +361,7 @@ function BoardAppInner({
     }
 
     function onNoteCreated(ev: MessageEvent) {
+      trackSeq(ev);
       try {
         const data = JSON.parse(ev.data) as { note: CanvasNote };
         setNotes((prev) =>
@@ -324,10 +375,11 @@ function BoardAppInner({
     }
 
     function onNoteUpdated(ev: MessageEvent) {
+      trackSeq(ev);
       try {
         const data = JSON.parse(ev.data) as { note: CanvasNote };
         setNotes((prev) =>
-          mergeRemoteNotes(prev, [data.note], dirtyNoteIdRef.current),
+          applyRemoteNote(prev, data.note, dirtyNoteIdRef.current),
         );
       } catch {
         // ignore
@@ -335,6 +387,7 @@ function BoardAppInner({
     }
 
     function onNoteDeleted(ev: MessageEvent) {
+      trackSeq(ev);
       try {
         const data = JSON.parse(ev.data) as { noteId: string };
         setNotes((prev) => prev.filter((n) => n.id !== data.noteId));
@@ -347,6 +400,7 @@ function BoardAppInner({
     }
 
     function onNoteRestored(ev: MessageEvent) {
+      trackSeq(ev);
       try {
         const data = JSON.parse(ev.data) as { note: CanvasNote };
         setNotes((prev) =>
@@ -434,7 +488,9 @@ function BoardAppInner({
     });
     if (!response.ok) return;
     const data = (await response.json()) as { note: CanvasNote };
-    setNotes((prev) => [...prev, data.note]);
+    setNotes((prev) =>
+      prev.some((n) => n.id === data.note.id) ? prev : [...prev, data.note],
+    );
     requestAnimationFrame(() => {
       requestAnimationFrame(() => openNote(data.note));
     });

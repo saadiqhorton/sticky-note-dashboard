@@ -3,6 +3,7 @@ import { requireApiUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { resolveBoard, serializeNote } from "@/lib/notes";
 import {
+  currentSeq,
   subscribeRealtime,
   touchSubscriber,
   unsubscribeRealtime,
@@ -15,8 +16,12 @@ function encodeSse(
   encoder: TextEncoder,
   event: string,
   data: unknown,
+  seq?: number,
 ): Uint8Array {
-  return encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  const idLine = seq !== undefined ? `id: ${seq}\n` : "";
+  return encoder.encode(
+    `${idLine}event: ${event}\ndata: ${JSON.stringify(data)}\n\n`,
+  );
 }
 
 export async function GET(request: NextRequest) {
@@ -48,10 +53,10 @@ export async function GET(request: NextRequest) {
 
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
-      const send = (event: string, data: unknown) => {
+      const send = (event: string, data: unknown, seq?: number) => {
         if (closed) return;
         try {
-          controller.enqueue(encodeSse(encoder, event, data));
+          controller.enqueue(encodeSse(encoder, event, data, seq));
         } catch {
           cleanup();
         }
@@ -63,12 +68,15 @@ export async function GET(request: NextRequest) {
         user.id,
         userName,
         clientId,
-        (payload) => send(payload.event, payload.data),
+        (payload, seq) => send(payload.event, payload.data, seq),
       );
       subId = id;
       send("presence.snapshot", { editors: snapshot.editors });
 
       // note.snapshot on every (re)subscription makes reconnect self-healing.
+      // Capture the room's broadcast sequence before the async read so the
+      // client can skip this snapshot if it already applied newer events.
+      const seqAtQuery = currentSeq(board.id);
       void prisma.note
         .findMany({
           where: { boardId: board.id, deletedAt: null },
@@ -76,7 +84,10 @@ export async function GET(request: NextRequest) {
         })
         .then((notes) => {
           if (closed) return;
-          send("note.snapshot", { notes: notes.map(serializeNote) });
+          send("note.snapshot", {
+            notes: notes.map(serializeNote),
+            seq: seqAtQuery,
+          });
         })
         .catch(() => {
           // Best-effort; the client refetches on visibilitychange.

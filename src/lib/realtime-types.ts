@@ -43,7 +43,10 @@ export type ServerEvent =
   | { event: "note.moved"; data: { boardId: string; note: SerializedNote } }
   | { event: "note.deleted"; data: { boardId: string; noteId: string } }
   | { event: "note.restored"; data: { boardId: string; note: SerializedNote } }
-  | { event: "note.snapshot"; data: { notes: SerializedNote[] } }
+  | {
+      event: "note.snapshot";
+      data: { notes: SerializedNote[]; seq?: number };
+    }
   | { event: "presence.snapshot"; data: { editors: PresenceEditor[] } }
   | {
       event: "presence.join";
