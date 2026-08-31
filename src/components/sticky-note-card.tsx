@@ -71,7 +71,14 @@ export function StickyNoteCard({
           aria-hidden
           className="pointer-events-none absolute right-0 top-0 h-8 w-8 overflow-hidden"
         >
-          <span className="absolute -right-4 -top-4 h-10 w-10 rotate-45 bg-paper shadow" />
+          {/* Paper corner flap — curls/lifts subtly while dragging, static otherwise. */}
+          <span
+            className={`absolute -right-4 -top-4 h-10 w-10 transition-all duration-200 ease-out motion-reduce:transition-none ${
+              dragging
+                ? "rotate-[54deg] scale-105 bg-linear-to-br from-chrome to-paper shadow-lg shadow-ink/25"
+                : "rotate-45 bg-paper shadow"
+            }`}
+          />
         </span>
       )}
       <p className="font-display text-lg leading-tight text-ink pointer-events-none">
