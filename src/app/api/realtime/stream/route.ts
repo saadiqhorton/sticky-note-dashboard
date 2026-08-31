@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { resolveBoard, serializeNote } from "@/lib/notes";
 import {
   subscribeRealtime,
+  touchSubscriber,
   unsubscribeRealtime,
 } from "@/lib/realtime-hub";
 
@@ -83,6 +84,12 @@ export async function GET(request: NextRequest) {
 
       heartbeat = setInterval(() => {
         if (closed) return;
+        // Thread the keepalive through the hub so it bumps the subscriber's
+        // lastSeenAt; a gone subscriber means the stream must be torn down.
+        if (!subId || !touchSubscriber(board.id, subId)) {
+          cleanup();
+          return;
+        }
         try {
           controller.enqueue(encoder.encode(": keepalive\n\n"));
         } catch {

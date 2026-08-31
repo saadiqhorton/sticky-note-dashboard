@@ -49,7 +49,7 @@ function fail(message) {
 async function signIn() {
   const response = await fetch(`${BASE}/api/auth/sign-in/email`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", Origin: BASE },
     body: JSON.stringify({ email: EMAIL, password: PASSWORD }),
     redirect: "manual",
   });
@@ -138,27 +138,96 @@ async function api(cookie, path, options = {}) {
   return { response, body };
 }
 
-/** Restore a trashed note through the /trash progressive-enhancement form. */
+/** Decode the HTML entities Next.js uses to escape hidden input values. */
+function decodeHtmlEntities(value) {
+  return value
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&#x27;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+}
+
+/**
+ * Restore a trashed note via the /trash header-based server-action protocol.
+ *
+ * Next 16 renders server-action forms as hidden $ACTION_<n>:N inputs:
+ *   $ACTION_<n>:0 = {"id":"<action-hash>","bound":"$@1"}
+ *   $ACTION_<n>:1 = ["<noteId>"]
+ * both HTML-entity-encoded. The multipart replay 500s ("Failed to find Server
+ * Action"); the working protocol is a header-based POST:
+ *   POST /trash  Next-Action: <id>  Content-Type: text/plain;charset=UTF-8
+ *   body = JSON.stringify([noteId])
+ * The restoreNote action id is discovered by probing each distinct id on the
+ * page with a nonexistent note id: restoreNote returns 200 quietly
+ * (if (!note) return in src/app/trash/actions.ts), purgeNote 500s (prisma
+ * delete throws). Non-destructive probe — no trashed note is touched.
+ */
 async function restoreViaTrashForm(cookie, noteId) {
   const page = await fetch(`${BASE}/trash`, { headers: { cookie } });
-  if (!page.ok) fail(`GET /trash: HTTP ${page.status}`);
-  const html = await page.text();
-  const ref = html.match(/name="\$ACTION_REF_([^"]+)"/);
-  if (!ref) {
-    console.warn("WARN: no $ACTION_REF_ field in /trash HTML — skipping restore driver");
+  if (!page.ok) {
+    console.warn(`WARN: GET /trash HTTP ${page.status} — skipping restore driver`);
     return false;
   }
-  const id = ref[1];
-  // Next 16 only decodes server-action form posts from multipart bodies.
-  const form = new FormData();
-  form.set(`$ACTION_REF_${id}`, "");
-  form.set(`$ACTION_${id}:0`, noteId);
+  const html = await page.text();
+
+  // Collect the distinct server-action ids rendered on /trash (each trashed
+  // note renders two inputs: one restoreNote, one purgeNote).
+  const actionIds = new Set();
+  for (const match of html.matchAll(/name="\$ACTION_([^":]+):0" value="([^"]*)"/g)) {
+    let meta;
+    try {
+      meta = JSON.parse(decodeHtmlEntities(match[2]));
+    } catch {
+      continue; // unparseable metadata — ignore this input
+    }
+    if (meta && typeof meta.id === "string") actionIds.add(meta.id);
+  }
+  if (actionIds.size === 0) {
+    console.warn("WARN: no $ACTION_<n>:0 inputs found in /trash HTML — skipping restore driver");
+    return false;
+  }
+
+  // Probe with a nonexistent note id: restoreNote quiet 200, purgeNote 500.
+  const fakeNoteId = "00000000000000000000000000";
+  const okIds = [];
+  for (const id of actionIds) {
+    let status;
+    try {
+      const r = await fetch(`${BASE}/trash`, {
+        method: "POST",
+        headers: {
+          cookie,
+          "Next-Action": id,
+          "Content-Type": "text/plain;charset=UTF-8",
+        },
+        body: JSON.stringify([fakeNoteId]),
+        redirect: "manual",
+      });
+      status = r.status;
+    } catch (err) {
+      console.warn(`WARN: probe for action id ${id} failed: ${err.message}`);
+    }
+    if (status === 200) okIds.push(id);
+  }
+  if (okIds.length !== 1) {
+    console.warn(
+      `WARN: expected exactly one restoreNote action id, found ${okIds.length}${okIds.length ? ` (${okIds.join(", ")})` : ""} — skipping restore driver`,
+    );
+    return false;
+  }
+
   const response = await fetch(`${BASE}/trash`, {
     method: "POST",
-    headers: { cookie },
-    body: form,
+    headers: {
+      cookie,
+      "Next-Action": okIds[0],
+      "Content-Type": "text/plain;charset=UTF-8",
+    },
+    body: JSON.stringify([noteId]),
+    redirect: "manual",
   });
-  if (!response.ok) fail(`restore form POST: HTTP ${response.status}`);
+  if (!response.ok) fail(`restore POST: HTTP ${response.status}`);
   return true;
 }
 
@@ -172,7 +241,7 @@ async function main() {
   console.log(`[${stamp()}] signed in as ${EMAIL}`);
 
   const eventsA = [];
-  const streamA = openStream(cookie, "smoke-observer", (ev) => {
+  const streamA = await openStream(cookie, "smoke-observer", (ev) => {
     eventsA.push(ev);
     console.log(`[${stamp()}] A <- ${ev.event} ${JSON.stringify(ev.data)}`);
   });
@@ -185,7 +254,7 @@ async function main() {
 
   // Second identity connects -> observer sees presence.join.
   const eventsB = [];
-  const streamB = openStream(cookie, "smoke-actor", (ev) => {
+  const streamB = await openStream(cookie, "smoke-actor", (ev) => {
     eventsB.push(ev);
     console.log(`[${stamp()}] B <- ${ev.event} ${JSON.stringify(ev.data)}`);
   });

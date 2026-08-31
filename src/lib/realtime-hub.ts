@@ -10,6 +10,8 @@ type Subscriber = {
   userName: string;
   clientId: string;
   send: (payload: ServerEvent) => void;
+  /** Last time the hub pushed to this subscriber (event or keepalive). */
+  lastSeenAt: number;
 };
 
 type Room = {
@@ -54,6 +56,7 @@ function broadcast(boardId: string, payload: ServerEvent) {
   const room = getRoom(boardId);
   room.lastSeenAt = Date.now();
   for (const sub of room.subscribers.values()) {
+    sub.lastSeenAt = Date.now();
     try {
       sub.send(payload);
     } catch {
@@ -62,7 +65,7 @@ function broadcast(boardId: string, payload: ServerEvent) {
   }
 }
 
-/** Evict presence entries whose lastSeenAt is older than the TTL. */
+/** Evict presence entries and subscribers whose lastSeenAt is older than the TTL. */
 function sweepExpiredPresence() {
   const now = Date.now();
   for (const [boardId, room] of rooms) {
@@ -75,6 +78,25 @@ function sweepExpiredPresence() {
             clientId,
             userId: entry.userId,
             userName: entry.userName,
+          },
+        });
+      }
+    }
+    // A blackholed SSE connection never fires abort/cancel, so its
+    // subscriber would leak forever. Evict it along with its presence entry.
+    for (const [subId, sub] of room.subscribers) {
+      if (now - sub.lastSeenAt > PRESENCE_TTL_MS) {
+        room.subscribers.delete(subId);
+        const prior = room.byClientId.get(sub.clientId);
+        if (prior) {
+          room.byClientId.delete(sub.clientId);
+        }
+        broadcast(boardId, {
+          event: "presence.leave",
+          data: {
+            clientId: sub.clientId,
+            userId: prior?.userId ?? sub.userId,
+            userName: prior?.userName ?? sub.userName,
           },
         });
       }
@@ -101,7 +123,14 @@ export function subscribeRealtime(
 ): { subId: string; snapshot: { editors: PresenceEditor[] } } {
   const room = getRoom(boardId);
   const subId = `${clientId}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
-  room.subscribers.set(subId, { id: subId, userId, userName, clientId, send });
+  room.subscribers.set(subId, {
+    id: subId,
+    userId,
+    userName,
+    clientId,
+    send,
+    lastSeenAt: Date.now(),
+  });
 
   // A reconnecting tab keeps its presence entry alive.
   const prior = room.byClientId.get(clientId);
@@ -116,6 +145,19 @@ export function subscribeRealtime(
     subId,
     snapshot: { editors: Array.from(room.byClientId.values()) },
   };
+}
+
+/**
+ * Keepalive path: bump a subscriber's lastSeenAt so the sweep never evicts
+ * a healthy stream. Returns false when the subscriber is gone so the route
+ * can tear the stream down.
+ */
+export function touchSubscriber(boardId: string, subId: string): boolean {
+  const room = rooms.get(boardId);
+  const sub = room?.subscribers.get(subId);
+  if (!sub) return false;
+  sub.lastSeenAt = Date.now();
+  return true;
 }
 
 export function unsubscribeRealtime(boardId: string, subId: string) {
