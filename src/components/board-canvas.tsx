@@ -276,12 +276,6 @@ export function BoardCanvas({
               >
                 New sticky note
               </button>
-              <button type="button" className={menuItemClass} disabled>
-                Paste
-              </button>
-              <button type="button" className={menuItemClass} disabled>
-                Zoom to fit
-              </button>
             </>
           ) : (
             <>
