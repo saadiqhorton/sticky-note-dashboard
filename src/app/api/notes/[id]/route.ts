@@ -8,6 +8,7 @@ import {
   serializeNote,
 } from "@/lib/notes";
 import { clampNotePositionForStorage } from "@/lib/note-bounds";
+import { broadcastNote } from "@/lib/realtime-hub";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -42,7 +43,23 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     height?: number;
     zIndex?: number;
     rotation?: number;
+    expectedUpdatedAt?: string;
   };
+  // GAP-016: reject a stale save before writing (peer wrote first).
+  if (body.expectedUpdatedAt !== undefined) {
+    const expected = Date.parse(body.expectedUpdatedAt);
+    if (Number.isFinite(expected) && existing.updatedAt.getTime() > expected) {
+      return NextResponse.json(
+        { error: "conflict", note: serializeNote(existing) },
+        { status: 409 },
+      );
+    }
+  }
+
+  const isMove =
+    body.x !== undefined ||
+    body.y !== undefined ||
+    body.zIndex !== undefined;
 
   const nextWidth = body.width ?? existing.width;
   const nextHeight = body.height ?? existing.height;
@@ -71,14 +88,20 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     },
   });
 
+  const serialized = {
+    ...serializeNote(note),
+    preview:
+      body.preview !== undefined
+        ? body.preview
+        : previewFromBody(note.bodyJson),
+  };
+  broadcastNote(existing.board.id, {
+    event: isMove ? "note.moved" : "note.updated",
+    data: { boardId: existing.board.id, note: serialized },
+  });
+
   return NextResponse.json({
-    note: {
-      ...serializeNote(note),
-      preview:
-        body.preview !== undefined
-          ? body.preview
-          : previewFromBody(note.bodyJson),
-    },
+    note: serialized,
   });
 }
 
@@ -96,6 +119,10 @@ export async function DELETE(_request: NextRequest, { params }: Params) {
       deletedAt: new Date(),
       updatedById: user.id,
     },
+  });
+  broadcastNote(result.note!.board.id, {
+    event: "note.deleted",
+    data: { boardId: result.note!.board.id, noteId: result.note!.id },
   });
 
   return NextResponse.json({ note: serializeNote(note) });

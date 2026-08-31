@@ -11,6 +11,7 @@ import {
   DEFAULT_NOTE_HEIGHT,
   DEFAULT_NOTE_WIDTH,
 } from "@/lib/note-bounds";
+import { broadcastNote } from "@/lib/realtime-hub";
 
 export async function GET(request: NextRequest) {
   const authResult = await requireApiUser();
@@ -78,5 +79,9 @@ export async function POST(request: NextRequest) {
     },
   });
 
+  broadcastNote(board.id, {
+    event: "note.created",
+    data: { boardId: board.id, note: serializeNote(note) },
+  });
   return NextResponse.json({ note: serializeNote(note) }, { status: 201 });
 }

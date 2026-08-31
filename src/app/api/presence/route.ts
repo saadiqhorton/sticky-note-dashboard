@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/session";
 import { resolveBoard } from "@/lib/notes";
-import { setEditing, setIdle } from "@/lib/presence-hub";
+import { prisma } from "@/lib/prisma";
+import { setEditing, setIdle } from "@/lib/realtime-hub";
 
 export const runtime = "nodejs";
 
@@ -33,6 +34,17 @@ export async function POST(request: NextRequest) {
   const board = await resolveBoard(body.board ?? "team", user.id);
   if (board.type === "private" && board.ownerUserId !== user.id) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  // The claimed note must actually live on this board (no cross-board claims).
+  const note = await prisma.note.findUnique({
+    where: { id: noteId },
+    select: { boardId: true },
+  });
+  if (!note || note.boardId !== board.id) {
+    return NextResponse.json(
+      { error: "noteId does not belong to this board" },
+      { status: 400 },
+    );
   }
 
   if (action === "editing") {

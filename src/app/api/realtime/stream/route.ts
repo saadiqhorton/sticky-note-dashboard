@@ -1,11 +1,11 @@
 import { NextRequest } from "next/server";
 import { requireApiUser } from "@/lib/session";
-import { resolveBoard } from "@/lib/notes";
+import { prisma } from "@/lib/prisma";
+import { resolveBoard, serializeNote } from "@/lib/notes";
 import {
-  subscribePresence,
-  unsubscribePresence,
-  type PresenceEditor,
-} from "@/lib/presence-hub";
+  subscribeRealtime,
+  unsubscribeRealtime,
+} from "@/lib/realtime-hub";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -56,14 +56,30 @@ export async function GET(request: NextRequest) {
         }
       };
 
-      const { subId: id, snapshot } = subscribePresence(
+      const userName = user.name || user.email || "Someone";
+      const { subId: id, snapshot } = subscribeRealtime(
         board.id,
         user.id,
+        userName,
         clientId,
         (payload) => send(payload.event, payload.data),
       );
       subId = id;
-      send("presence.snapshot", { editors: snapshot as PresenceEditor[] });
+      send("presence.snapshot", { editors: snapshot.editors });
+
+      // note.snapshot on every (re)subscription makes reconnect self-healing.
+      void prisma.note
+        .findMany({
+          where: { boardId: board.id, deletedAt: null },
+          orderBy: { zIndex: "asc" },
+        })
+        .then((notes) => {
+          if (closed) return;
+          send("note.snapshot", { notes: notes.map(serializeNote) });
+        })
+        .catch(() => {
+          // Best-effort; the client refetches on visibilitychange.
+        });
 
       heartbeat = setInterval(() => {
         if (closed) return;
@@ -86,7 +102,7 @@ export async function GET(request: NextRequest) {
           heartbeat = null;
         }
         if (subId) {
-          unsubscribePresence(board.id, subId);
+          unsubscribeRealtime(board.id, subId);
           subId = null;
         }
         try {
@@ -103,7 +119,7 @@ export async function GET(request: NextRequest) {
         heartbeat = null;
       }
       if (subId) {
-        unsubscribePresence(board.id, subId);
+        unsubscribeRealtime(board.id, subId);
         subId = null;
       }
     },

@@ -24,6 +24,12 @@ type NoteEditorProps = {
   onDelete: (id: string) => Promise<void>;
 };
 
+/** GAP-016: shown when a save was rejected with 409 (peer wrote first). */
+type ConflictNoticeProps = {
+  conflict?: string | null;
+  onDismissConflict?: () => void;
+};
+
 type Phase = "enter-from" | "enter-to" | "open" | "exit";
 type SaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
 
@@ -35,11 +41,13 @@ export function NoteEditor({
   note,
   origin,
   warning,
+  conflict,
+  onDismissConflict,
   onDirtyChange,
   onClose,
   onSave,
   onDelete,
-}: NoteEditorProps) {
+}: NoteEditorProps & ConflictNoticeProps) {
   const [title, setTitle] = useState(note.title);
   const [body, setBody] = useState(note.preview);
   const [color, setColor] = useState<StickyColorKey>(note.color);
@@ -307,6 +315,19 @@ export function NoteEditor({
             <p className="mb-4 shrink-0 rounded-lg border border-amber bg-paper px-3 py-2.5 text-sm font-medium text-ink-muted">
               ⚠ {warning}
             </p>
+          ) : null}
+          {conflict ? (
+            <div className="mb-4 flex shrink-0 items-center gap-2 rounded-lg border border-red-800/40 bg-paper px-3 py-2.5 text-sm font-medium text-red-800">
+              <span className="flex-1">⚠ {conflict}</span>
+              <button
+                type="button"
+                aria-label="Dismiss conflict notice"
+                onClick={onDismissConflict}
+                className="rounded border border-red-800/30 px-1.5 text-xs font-semibold"
+              >
+                ×
+              </button>
+            </div>
           ) : null}
 
           <input
