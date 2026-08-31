@@ -59,5 +59,11 @@ next-env.d.ts
 .goal/
 skills-lock.json
 
+# Internal planning / security notes (local only — not published)
+GAP-ANALYSIS-v1.md
+security-analysis.md
+/docs/agents/
+AGENTS.local.md
+
 /docs/plans/
 /docs/analysis/
