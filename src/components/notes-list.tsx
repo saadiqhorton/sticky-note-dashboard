@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { CanvasNote } from "@/components/sticky-note-card";
 import { stickyColors } from "@/lib/theme";
 
@@ -17,6 +18,8 @@ type NotesListProps = {
 };
 
 export function NotesList({ notes, query, onOpenNote }: NotesListProps) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const normalized = query.trim().toLowerCase();
   const filtered = normalized
     ? notes.filter(
@@ -35,7 +38,9 @@ export function NotesList({ notes, query, onOpenNote }: NotesListProps) {
       </p>
 
       <ul className="space-y-3">
-        {filtered.map((note) => (
+        {filtered.map((note) => {
+          const formatted = mounted ? formatUpdatedAt(note.updatedAt) : null;
+          return (
           <li key={note.id}>
             <button
               type="button"
@@ -55,21 +60,18 @@ export function NotesList({ notes, query, onOpenNote }: NotesListProps) {
                   {note.preview || "Empty note"}
                 </span>
               </span>
-              {(() => {
-                const formatted = formatUpdatedAt(note.updatedAt);
-                if (!formatted) return null;
-                return (
-                  <time
-                    dateTime={note.updatedAt}
-                    className="shrink-0 text-sm text-ink-muted"
-                  >
-                    Last edited {formatted}
-                  </time>
-                );
-              })()}
+              {formatted ? (
+                <time
+                  dateTime={note.updatedAt}
+                  className="shrink-0 text-sm text-ink-muted"
+                >
+                  Last edited {formatted}
+                </time>
+              ) : null}
             </button>
           </li>
-        ))}
+          );
+        })}
       </ul>
 
       <p className="mt-6 text-sm text-ink-muted">
