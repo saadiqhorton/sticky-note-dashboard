@@ -253,6 +253,9 @@ function BoardAppInner({
   useEffect(() => {
     if (!clientId) return;
     const selfClientId = clientId;
+    // The server namespaces clientId by user; self-exclusion must compare the
+    // namespaced id that events carry.
+    const nsSelfClientId = `${currentUserId}:${selfClientId}`;
     // Seq is per-board (per-room); reset so a prior board's high seq cannot
     // suppress this board's authoritative note.snapshot.
     lastEventSeqRef.current = null;
@@ -289,7 +292,7 @@ function BoardAppInner({
         setViewerClientIds(
           new Set((data.editors ?? []).map((editor) => editor.clientId)),
         );
-        setEditingByNoteId(mapFromEditors(data.editors ?? [], selfClientId));
+        setEditingByNoteId(mapFromEditors(data.editors ?? [], nsSelfClientId));
       } catch {
         // ignore malformed
       }
@@ -304,7 +307,7 @@ function BoardAppInner({
           next.add(editor.clientId);
           return next;
         });
-        if (editor.clientId === selfClientId) return;
+        if (editor.clientId === nsSelfClientId) return;
         setEditingByNoteId((prev) => {
           const next = { ...prev };
           for (const [noteId, current] of Object.entries(next)) {
@@ -336,7 +339,7 @@ function BoardAppInner({
           next.delete(data.clientId);
           return next;
         });
-        if (data.clientId === selfClientId) return;
+        if (data.clientId === nsSelfClientId) return;
         setEditingByNoteId((prev) => {
           const current = prev[data.noteId];
           if (!current || current.clientId !== data.clientId) return prev;
@@ -358,7 +361,7 @@ function BoardAppInner({
           next.delete(data.clientId);
           return next;
         });
-        if (data.clientId === selfClientId) return;
+        if (data.clientId === nsSelfClientId) return;
         setEditingByNoteId((prev) => {
           const next = { ...prev };
           for (const [noteId, current] of Object.entries(next)) {

@@ -38,6 +38,11 @@ export async function GET(request: NextRequest) {
       headers: { "Content-Type": "application/json" },
     });
   }
+  // clientId is caller-chosen; bind it to the authenticated user so a
+  // teammate can never impersonate, hijack, or keep alive another tab's
+  // connection (the namespaced id is what subscribers and presence entries
+  // are keyed by and what all events broadcast).
+  const nsClientId = `${user.id}:${clientId}`;
 
   const board = await resolveBoard(boardParam, user.id);
   if (board.type === "private" && board.ownerUserId !== user.id) {
@@ -78,7 +83,7 @@ export async function GET(request: NextRequest) {
         board.id,
         user.id,
         userName,
-        clientId,
+        nsClientId,
         (payload, seq) => send(payload.event, payload.data, seq),
       );
       if ("error" in result) {

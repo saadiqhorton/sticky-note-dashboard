@@ -240,7 +240,9 @@ async function main() {
   });
   const join = await waitFor(
     eventsA,
-    (e) => e.event === "presence.join" && e.data.clientId === "smoke-actor",
+    (e) =>
+      e.event === "presence.join" &&
+      e.data.clientId?.endsWith(":smoke-actor"),
     "A presence.join(smoke-actor)",
   );
   check("A sees presence.join for actor", true, `clientId=${join.data.clientId}`);
@@ -322,7 +324,9 @@ async function main() {
   });
   const editingEv = await waitFor(
     eventsA,
-    (e) => e.event === "presence.editing" && e.data.clientId === "smoke-actor",
+    (e) =>
+      e.event === "presence.editing" &&
+      e.data.clientId?.endsWith(":smoke-actor"),
     "A presence.editing",
   );
   check("A sees presence.editing", true, `noteId=${editingEv.data.noteId}`);
@@ -334,7 +338,9 @@ async function main() {
   });
   const idleEv = await waitFor(
     eventsA,
-    (e) => e.event === "presence.idle" && e.data.clientId === "smoke-actor",
+    (e) =>
+      e.event === "presence.idle" &&
+      e.data.clientId?.endsWith(":smoke-actor"),
     "A presence.idle",
   );
   check("A sees presence.idle", true, `noteId=${idleEv.data.noteId}`);
@@ -363,7 +369,9 @@ async function main() {
   streamB.close();
   const leaveEv = await waitFor(
     eventsA,
-    (e) => e.event === "presence.leave" && e.data.clientId === "smoke-actor",
+    (e) =>
+      e.event === "presence.leave" &&
+      e.data.clientId?.endsWith(":smoke-actor"),
     "A presence.leave",
   );
   check("A sees presence.leave on disconnect", true, `clientId=${leaveEv.data.clientId}`);

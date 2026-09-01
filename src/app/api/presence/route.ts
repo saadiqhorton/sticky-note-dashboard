@@ -27,6 +27,10 @@ export async function POST(request: NextRequest) {
   if (!clientId || clientId.length > 80) {
     return NextResponse.json({ error: "clientId required" }, { status: 400 });
   }
+  // Bind the caller-chosen clientId to the authenticated user (same scheme as
+  // the stream route) so presence writes can only ever touch the caller's own
+  // connections.
+  const nsClientId = `${user.id}:${clientId}`;
 
   const board = await resolveBoard(body.board ?? "team", user.id);
   if (board.type === "private" && board.ownerUserId !== user.id) {
@@ -35,7 +39,7 @@ export async function POST(request: NextRequest) {
 
   // Connection liveness ping: only the owning user's connections.
   if (action === "ping") {
-    pingSubscriber(board.id, clientId, user.id);
+    pingSubscriber(board.id, nsClientId, user.id);
     return NextResponse.json({ ok: true });
   }
 
@@ -56,7 +60,7 @@ export async function POST(request: NextRequest) {
 
   if (action === "editing") {
     const editor = setEditing(board.id, {
-      clientId,
+      clientId: nsClientId,
       noteId,
       userId: user.id,
       userName: user.name || user.email || "Someone",
@@ -70,6 +74,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, editor });
   }
 
-  const cleared = setIdle(board.id, clientId, user.id, noteId);
+  const cleared = setIdle(board.id, nsClientId, user.id, noteId);
   return NextResponse.json({ ok: true, cleared });
 }
