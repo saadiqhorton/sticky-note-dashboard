@@ -30,11 +30,13 @@ const SWEEP_INTERVAL_MS = 30_000;
 // Bound per-room connection growth: one member must not be able to exhaust
 // memory/FDs by opening unbounded streams (clientId is caller-chosen).
 const MAX_SUBSCRIBERS_PER_ROOM = 100;
-const MAX_SUBSCRIBERS_PER_CLIENT = 2;
+const MAX_SUBSCRIBERS_PER_USER = 20;
 
 const globalForRealtime = globalThis as unknown as {
   __stickyRealtimeRoomsV2?: Map<string, Room>;
   __stickyRealtimeSweepStarted?: boolean;
+  /** Monotonic subscriber counter (HMR-safe) — subId tie-breaker. */
+  __stickySubCounter?: number;
 };
 
 const rooms: Map<string, Room> =
@@ -129,18 +131,18 @@ function startSweep() {
 
 export function canSubscribe(
   boardId: string,
-  clientId: string,
+  userId: string,
 ): string | null {
   const room = rooms.get(boardId);
   if (!room) return null;
   if (room.subscribers.size >= MAX_SUBSCRIBERS_PER_ROOM) {
     return "room_full";
   }
-  let sameClient = 0;
+  let sameUser = 0;
   for (const sub of room.subscribers.values()) {
-    if (sub.clientId === clientId) sameClient += 1;
+    if (sub.userId === userId) sameUser += 1;
   }
-  if (sameClient >= MAX_SUBSCRIBERS_PER_CLIENT) {
+  if (sameUser >= MAX_SUBSCRIBERS_PER_USER) {
     return "too_many_connections";
   }
   return null;
@@ -154,9 +156,11 @@ export function subscribeRealtime(
   send: (payload: ServerEvent, seq: number) => void,
 ): { subId: string; snapshot: { editors: PresenceEditor[] } } | { error: string } {
   const room = getRoom(boardId);
-  const capError = canSubscribe(boardId, clientId);
+  const capError = canSubscribe(boardId, userId);
   if (capError) return { error: capError };
-  const subId = `${clientId}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
+  const subCounter = globalForRealtime.__stickySubCounter ?? 0;
+  globalForRealtime.__stickySubCounter = subCounter + 1;
+  const subId = `${clientId}:${Date.now()}:${subCounter}`;
   room.subscribers.set(subId, {
     id: subId,
     userId,
@@ -217,19 +221,24 @@ export function touchSubscriber(boardId: string, subId: string): boolean {
  * NOT refresh lastSeenAt — they cannot distinguish a dead socket from a live
  * one (enqueue buffers on blackholed streams).
  */
-export function pingSubscriber(boardId: string, clientId: string): boolean {
+export function pingSubscriber(
+  boardId: string,
+  clientId: string,
+  userId: string,
+): boolean {
   const room = rooms.get(boardId);
   if (!room) return false;
-  // Bump only the newest subscriber for this tab: after an EventSource
-  // reconnect the prior (possibly blackholed) connection lingers until the
-  // sweep evicts it — pinging it too would keep the zombie alive forever.
+  // Bump only the newest subscriber for this tab owned by this user: after an
+  // EventSource reconnect the prior (possibly blackholed) connection lingers
+  // until the sweep evicts it — pinging it too would keep the zombie alive.
+  // The monotonic counter in the subId breaks same-millisecond ties.
   let newest: Subscriber | null = null;
-  let newestTs = -1;
+  let newestSeq = -1;
   for (const sub of room.subscribers.values()) {
-    if (sub.clientId !== clientId) continue;
-    const ts = Number(sub.id.split(":").at(-2) ?? 0);
-    if (ts > newestTs) {
-      newestTs = ts;
+    if (sub.clientId !== clientId || sub.userId !== userId) continue;
+    const seq = Number(sub.id.split(":").at(-1) ?? 0);
+    if (seq > newestSeq) {
+      newestSeq = seq;
       newest = sub;
     }
   }
@@ -276,9 +285,14 @@ export function unsubscribeRealtime(boardId: string, subId: string) {
 export function setEditing(
   boardId: string,
   editor: PresenceEditor,
-): PresenceEditor {
+): PresenceEditor | null {
   const room = getRoom(boardId);
   const prior = room.byClientId.get(editor.clientId);
+  // A clientId names a specific tab; only its owner may update it. Prevents a
+  // teammate from hijacking or clearing another tab's editing presence.
+  if (prior && prior.userId !== editor.userId) {
+    return null;
+  }
   if (prior && prior.noteId !== editor.noteId) {
     broadcast(boardId, {
       event: "presence.idle",
@@ -297,11 +311,13 @@ export function setEditing(
 export function setIdle(
   boardId: string,
   clientId: string,
+  userId: string,
   noteId?: string,
 ): { noteId: string; userId: string; clientId: string } | null {
   const room = getRoom(boardId);
   const prior = room.byClientId.get(clientId);
   if (!prior) return null;
+  if (prior.userId !== userId) return null;
   if (noteId && prior.noteId !== noteId) return null;
   room.byClientId.delete(clientId);
   const payload = {

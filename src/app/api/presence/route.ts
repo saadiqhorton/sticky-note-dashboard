@@ -33,9 +33,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // Connection liveness ping: no note scope, no ownership check.
+  // Connection liveness ping: only the owning user's connections.
   if (action === "ping") {
-    pingSubscriber(board.id, clientId);
+    pingSubscriber(board.id, clientId, user.id);
     return NextResponse.json({ ok: true });
   }
 
@@ -61,9 +61,15 @@ export async function POST(request: NextRequest) {
       userId: user.id,
       userName: user.name || user.email || "Someone",
     });
+    if (!editor) {
+      return NextResponse.json(
+        { error: "clientId belongs to another user" },
+        { status: 403 },
+      );
+    }
     return NextResponse.json({ ok: true, editor });
   }
 
-  const cleared = setIdle(board.id, clientId, noteId);
+  const cleared = setIdle(board.id, clientId, user.id, noteId);
   return NextResponse.json({ ok: true, cleared });
 }

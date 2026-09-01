@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
 
   // Bound per-room connections before opening the stream (clientId is
   // caller-chosen, so one member must not be able to open unbounded streams).
-  const capError = canSubscribe(board.id, clientId);
+  const capError = canSubscribe(board.id, user.id);
   if (capError) {
     return new Response(JSON.stringify({ error: capError }), {
       status: 503,
