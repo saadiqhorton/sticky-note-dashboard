@@ -81,7 +81,6 @@ when using the optional `docker-compose.dev.yml` overlay.
 
 - Rich text editing + checklists in note bodies
 - File attachments
-- Push-based live board sync (beyond presence)
 - Stronger paper-flap motion polish
 - Pan/zoom canvas + clipboard paste on board
 - Mobile default-to-list view
