@@ -1,5 +1,6 @@
 "use client";
 
+import { flapTransform } from "@/lib/note-overlap";
 import { stickyColors, type StickyColorKey } from "@/lib/theme";
 
 export type CanvasNote = {
@@ -21,6 +22,8 @@ type StickyNoteCardProps = {
   note: CanvasNote;
   selected?: boolean;
   dragging?: boolean;
+  /** 0–1 paper-flap peel from overlap (and a drag floor while moving). */
+  overlapPeel?: number;
   hidden?: boolean;
   onPointerDown?: (event: React.PointerEvent, note: CanvasNote) => void;
   onOpen?: (note: CanvasNote) => void;
@@ -31,16 +34,23 @@ export function StickyNoteCard({
   note,
   selected,
   dragging,
+  overlapPeel = 0,
   hidden,
   onPointerDown,
   onOpen,
   onContextMenu,
 }: StickyNoteCardProps) {
+  const peel = Math.min(1, Math.max(0, overlapPeel));
+  const flapOpen = Boolean(dragging || selected || peel > 0.02);
+  const { rotateDeg, scale } = flapTransform(peel);
+  const peeling = peel > 0.2;
+
   return (
     <div
       role="button"
       tabIndex={0}
       data-note-id={note.id}
+      data-peel={peel.toFixed(2)}
       onPointerDown={(event) => onPointerDown?.(event, note)}
       onContextMenu={(event) => {
         event.preventDefault();
@@ -69,16 +79,19 @@ export function StickyNoteCard({
       <span
         aria-hidden
         className={`pointer-events-none absolute right-0 top-0 h-8 w-8 overflow-hidden transition-opacity duration-200 ease-out motion-reduce:transition-none ${
-          dragging || selected ? "opacity-100" : "opacity-0"
+          flapOpen ? "opacity-100" : "opacity-0"
         }`}
       >
-        {/* Paper corner flap — always mounted so the drag peel transition plays; hidden at rest. */}
+        {/* Always mounted so peel/lift can transition instead of popping in. */}
         <span
-          className={`absolute -right-4 -top-4 h-10 w-10 transition-all duration-200 ease-out motion-reduce:transition-none ${
-            dragging
-              ? "rotate-[54deg] scale-105 bg-linear-to-br from-chrome to-paper shadow-lg shadow-ink/25"
-              : "rotate-45 bg-paper shadow"
+          className={`paper-flap-inner absolute -right-4 -top-4 h-10 w-10 ${
+            peeling
+              ? "bg-linear-to-br from-chrome to-paper shadow-lg shadow-ink/25"
+              : "bg-paper shadow"
           }`}
+          style={{
+            transform: `rotate(${rotateDeg}deg) scale(${scale})`,
+          }}
         />
       </span>
       <p className="font-display text-lg leading-tight text-ink pointer-events-none">

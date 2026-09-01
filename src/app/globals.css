@@ -56,8 +56,20 @@ body {
     8px 20px 32px rgba(44, 36, 22, 0.22);
 }
 
+.paper-flap-inner {
+  transform-origin: center;
+  transition:
+    transform 200ms ease-out,
+    background 200ms ease-out,
+    box-shadow 200ms ease-out;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .note-zoom-panel {
     transition: none !important;
+  }
+
+  .paper-flap-inner {
+    transition: none;
   }
 }
