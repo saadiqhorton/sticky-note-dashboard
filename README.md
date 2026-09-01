@@ -75,11 +75,10 @@ when using the optional `docker-compose.dev.yml` overlay.
 - List view + keyword search
 - Soft delete / Trash restore; admin purge
 - Yellow/cream theme from locked Figma tokens
-- Near-live note sync (polling) + real-time edit presence (SSE)
+- Live board sync (SSE push) + real-time edit presence
 
 ## Still coming
 
 - TipTap rich text + checklist + attachments
-- Push-based live board sync (beyond presence)
 - Stronger paper-flap motion polish
 - Pan/zoom canvas

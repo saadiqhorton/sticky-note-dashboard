@@ -6,9 +6,11 @@ import { BoardChrome } from "@/components/board-chrome";
 import { BoardCanvas } from "@/components/board-canvas";
 import { NotesList } from "@/components/notes-list";
 import { NoteEditor } from "@/components/note-editor";
+import { ViewerChip } from "@/components/viewer-chip";
 import type { CanvasNote } from "@/components/sticky-note-card";
 import type { StickyColorKey } from "@/lib/theme";
 import { getNoteOriginRect, type NoteOriginRect } from "@/lib/note-origin";
+import type { PresenceEditor } from "@/lib/realtime-types";
 
 type BoardAppProps = {
   isAdmin: boolean;
@@ -25,14 +27,6 @@ type OpenState = {
   baselineUpdatedAt: string;
 };
 
-type PresenceEditor = {
-  clientId: string;
-  noteId: string;
-  userId: string;
-  userName: string;
-};
-
-const POLL_MS = 2500;
 const CLIENT_ID_KEY = "sb-presence-client";
 
 function getPresenceClientId(): string {
@@ -87,6 +81,27 @@ function mergeRemoteNotes(
   return merged;
 }
 
+/**
+ * In-place per-note merge for single-note remote events (note.updated /
+ * note.moved). Unlike mergeRemoteNotes, this keeps every local note and only
+ * replaces the one that changed, so a live edit can never wipe the board.
+ */
+function applyRemoteNote(
+  local: CanvasNote[],
+  note: CanvasNote,
+  dirtyNoteId: string | null,
+): CanvasNote[] {
+  return local.map((n) =>
+    n.id === note.id
+      ? dirtyNoteId === note.id
+        ? n
+        : Date.parse(note.updatedAt || "") >= Date.parse(n.updatedAt || "")
+          ? note
+          : n
+      : n,
+  );
+}
+
 /** noteId → peer editor (excludes this browser tab only). */
 function mapFromEditors(
   editors: PresenceEditor[],
@@ -108,18 +123,23 @@ function peerLabel(editor: PresenceEditor, selfUserId: string): string {
 async function postPresence(
   board: string,
   clientId: string,
-  action: "editing" | "idle",
-  noteId: string,
+  action: "editing" | "idle" | "ping",
+  noteId?: string,
 ) {
   try {
     await fetch("/api/presence", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ board, action, noteId, clientId }),
+      body: JSON.stringify({
+        board,
+        action,
+        ...(noteId ? { noteId } : {}),
+        clientId,
+      }),
       keepalive: action === "idle",
     });
   } catch {
-    // Presence is best-effort; Phase 1 poll still syncs content.
+    // Presence is best-effort; the realtime stream syncs content.
   }
 }
 
@@ -141,7 +161,12 @@ function BoardAppInner({
   const [editingByNoteId, setEditingByNoteId] = useState<
     Record<string, PresenceEditor>
   >({});
+  const [viewerClientIds, setViewerClientIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [conflict, setConflict] = useState<string | null>(null);
   const dirtyNoteIdRef = useRef<string | null>(null);
+  const lastEventSeqRef = useRef<number | null>(null);
   const notesRef = useRef(notes);
   const openNoteIdRef = useRef<string | null>(null);
   // Tracks the board whose server-rendered notes are currently displayed.
@@ -161,6 +186,14 @@ function BoardAppInner({
     if (!clientId || !openState) return;
     void postPresence(board, clientId, "editing", openState.note.id);
   }, [clientId, board, openState?.note.id]); // eslint-disable-line react-hooks/exhaustive-deps -- only when client/note identity changes
+  // Phase 2: keep presence alive while a note is open (server TTL is 90s)
+  useEffect(() => {
+    if (!clientId || !openState) return;
+    const interval = window.setInterval(() => {
+      void postPresence(board, clientId, "editing", openState.note.id);
+    }, 45000);
+    return () => window.clearInterval(interval);
+  }, [clientId, board, openState?.note.id]); // eslint-disable-line react-hooks/exhaustive-deps -- only while the open note identity is stable
 
   useEffect(() => {
     dirtyNoteIdRef.current =
@@ -198,15 +231,12 @@ function BoardAppInner({
     // would re-trigger this effect for unrelated view toggles.
     displayedBoardRef.current = board;
     setEditingByNoteId({});
+    setViewerClientIds(new Set());
     void syncNotes({ showLoading: true });
   }, [board, syncNotes]); // eslint-disable-line react-hooks/exhaustive-deps -- initialNotes only used for first paint
 
-  // Phase 1: poll + refetch when tab becomes visible
+  // Refetch when the tab becomes visible (backstop; live sync is push-based)
   useEffect(() => {
-    const interval = window.setInterval(() => {
-      void syncNotes();
-    }, POLL_MS);
-
     function onVisibility() {
       if (document.visibilityState === "visible") {
         void syncNotes();
@@ -215,33 +245,69 @@ function BoardAppInner({
     document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
-      window.clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [syncNotes]);
 
-  // Phase 2a: SSE presence stream (per-tab clientId so same-user tabs see each other)
+  // Phase 2: unified realtime stream (note.* + presence.*) per board
   useEffect(() => {
     if (!clientId) return;
     const selfClientId = clientId;
+    // The server namespaces clientId by user; self-exclusion must compare the
+    // namespaced id that events carry.
+    const nsSelfClientId = `${currentUserId}:${selfClientId}`;
+    // Seq is per-board (per-room); reset so a prior board's high seq cannot
+    // suppress this board's authoritative note.snapshot.
+    lastEventSeqRef.current = null;
+
+    // Track the highest SSE event id applied so a late note.snapshot (whose
+    // data.seq was captured before these events) can be skipped.
+    function trackSeq(ev: MessageEvent) {
+      const seq = Number(ev.lastEventId);
+      if (
+        Number.isFinite(seq) &&
+        (lastEventSeqRef.current == null || seq > lastEventSeqRef.current)
+      ) {
+        lastEventSeqRef.current = seq;
+      }
+    }
 
     const source = new EventSource(
-      `/api/presence/stream?board=${board}&clientId=${encodeURIComponent(selfClientId)}`,
+      `/api/realtime/stream?board=${board}&clientId=${encodeURIComponent(selfClientId)}`,
     );
+    // The server-side room (and its seq) can be swept and recreated; reset on
+    // every (re)connect so the first snapshot is always applied.
+    source.addEventListener("open", () => {
+      lastEventSeqRef.current = null;
+    });
+    // Connection liveness: the server evicts subscribers that stop pinging
+    // (blackholed sockets never fire abort/cancel). Ping every 30s.
+    const ping = window.setInterval(() => {
+      void postPresence(board, selfClientId, "ping");
+    }, 30000);
 
     function onSnapshot(ev: MessageEvent) {
       try {
         const data = JSON.parse(ev.data) as { editors: PresenceEditor[] };
-        setEditingByNoteId(mapFromEditors(data.editors ?? [], selfClientId));
+        setViewerClientIds(
+          new Set((data.editors ?? []).map((editor) => editor.clientId)),
+        );
+        setEditingByNoteId(mapFromEditors(data.editors ?? [], nsSelfClientId));
       } catch {
         // ignore malformed
       }
     }
 
     function onEditing(ev: MessageEvent) {
+      trackSeq(ev);
       try {
         const editor = JSON.parse(ev.data) as PresenceEditor;
-        if (editor.clientId === selfClientId) return;
+        setViewerClientIds((prev) => {
+          const next = new Set(prev);
+          next.add(editor.clientId);
+          return next;
+        });
+        if (editor.clientId === nsSelfClientId) return;
         setEditingByNoteId((prev) => {
           const next = { ...prev };
           for (const [noteId, current] of Object.entries(next)) {
@@ -261,13 +327,19 @@ function BoardAppInner({
     }
 
     function onIdle(ev: MessageEvent) {
+      trackSeq(ev);
       try {
         const data = JSON.parse(ev.data) as {
           noteId: string;
           userId: string;
           clientId: string;
         };
-        if (data.clientId === selfClientId) return;
+        setViewerClientIds((prev) => {
+          const next = new Set(prev);
+          next.delete(data.clientId);
+          return next;
+        });
+        if (data.clientId === nsSelfClientId) return;
         setEditingByNoteId((prev) => {
           const current = prev[data.noteId];
           if (!current || current.clientId !== data.clientId) return prev;
@@ -280,9 +352,115 @@ function BoardAppInner({
       }
     }
 
+    function onLeave(ev: MessageEvent) {
+      trackSeq(ev);
+      try {
+        const data = JSON.parse(ev.data) as { clientId: string };
+        setViewerClientIds((prev) => {
+          const next = new Set(prev);
+          next.delete(data.clientId);
+          return next;
+        });
+        if (data.clientId === nsSelfClientId) return;
+        setEditingByNoteId((prev) => {
+          const next = { ...prev };
+          for (const [noteId, current] of Object.entries(next)) {
+            if (current.clientId === data.clientId) delete next[noteId];
+          }
+          return next;
+        });
+      } catch {
+        // ignore
+      }
+    }
+
+    function onNoteSnapshot(ev: MessageEvent) {
+      try {
+        const data = JSON.parse(ev.data) as {
+          notes: CanvasNote[];
+          seq?: number;
+        };
+        if (
+          lastEventSeqRef.current != null &&
+          data.seq != null &&
+          lastEventSeqRef.current > data.seq
+        ) {
+          // Snapshot predates events already applied — skip so it cannot
+          // revert them. Fresh connections still apply the authoritative
+          // snapshot (reconnect-healing path).
+          return;
+        }
+        setNotes((prev) =>
+          mergeRemoteNotes(prev, data.notes ?? [], dirtyNoteIdRef.current),
+        );
+      } catch {
+        // ignore
+      }
+    }
+
+    function onNoteCreated(ev: MessageEvent) {
+      trackSeq(ev);
+      try {
+        const data = JSON.parse(ev.data) as { note: CanvasNote };
+        setNotes((prev) =>
+          prev.some((n) => n.id === data.note.id)
+            ? prev
+            : [...prev, data.note],
+        );
+      } catch {
+        // ignore
+      }
+    }
+
+    function onNoteUpdated(ev: MessageEvent) {
+      trackSeq(ev);
+      try {
+        const data = JSON.parse(ev.data) as { note: CanvasNote };
+        setNotes((prev) =>
+          applyRemoteNote(prev, data.note, dirtyNoteIdRef.current),
+        );
+      } catch {
+        // ignore
+      }
+    }
+
+    function onNoteDeleted(ev: MessageEvent) {
+      trackSeq(ev);
+      try {
+        const data = JSON.parse(ev.data) as { noteId: string };
+        setNotes((prev) => prev.filter((n) => n.id !== data.noteId));
+        setOpenState((current) =>
+          current?.note.id === data.noteId ? null : current,
+        );
+      } catch {
+        // ignore
+      }
+    }
+
+    function onNoteRestored(ev: MessageEvent) {
+      trackSeq(ev);
+      try {
+        const data = JSON.parse(ev.data) as { note: CanvasNote };
+        setNotes((prev) =>
+          prev.some((n) => n.id === data.note.id)
+            ? prev
+            : [...prev, data.note],
+        );
+      } catch {
+        // ignore
+      }
+    }
+
     source.addEventListener("presence.snapshot", onSnapshot as EventListener);
     source.addEventListener("presence.editing", onEditing as EventListener);
     source.addEventListener("presence.idle", onIdle as EventListener);
+    source.addEventListener("presence.leave", onLeave as EventListener);
+    source.addEventListener("note.snapshot", onNoteSnapshot as EventListener);
+    source.addEventListener("note.created", onNoteCreated as EventListener);
+    source.addEventListener("note.updated", onNoteUpdated as EventListener);
+    source.addEventListener("note.moved", onNoteUpdated as EventListener);
+    source.addEventListener("note.deleted", onNoteDeleted as EventListener);
+    source.addEventListener("note.restored", onNoteRestored as EventListener);
 
     return () => {
       source.removeEventListener(
@@ -294,7 +472,30 @@ function BoardAppInner({
         onEditing as EventListener,
       );
       source.removeEventListener("presence.idle", onIdle as EventListener);
+      source.removeEventListener("presence.leave", onLeave as EventListener);
+      source.removeEventListener(
+        "note.snapshot",
+        onNoteSnapshot as EventListener,
+      );
+      source.removeEventListener(
+        "note.created",
+        onNoteCreated as EventListener,
+      );
+      source.removeEventListener(
+        "note.updated",
+        onNoteUpdated as EventListener,
+      );
+      source.removeEventListener("note.moved", onNoteUpdated as EventListener);
+      source.removeEventListener(
+        "note.deleted",
+        onNoteDeleted as EventListener,
+      );
+      source.removeEventListener(
+        "note.restored",
+        onNoteRestored as EventListener,
+      );
       source.close();
+      window.clearInterval(ping);
       const openId = openNoteIdRef.current;
       if (openId) {
         void postPresence(board, selfClientId, "idle", openId);
@@ -309,6 +510,7 @@ function BoardAppInner({
     }
     const origin = getNoteOriginRect(note.id);
     setEditorDirty(false);
+    setConflict(null);
     setOpenState({
       note,
       origin,
@@ -325,24 +527,34 @@ function BoardAppInner({
     });
     if (!response.ok) return;
     const data = (await response.json()) as { note: CanvasNote };
-    setNotes((prev) => [...prev, data.note]);
+    setNotes((prev) =>
+      prev.some((n) => n.id === data.note.id) ? prev : [...prev, data.note],
+    );
     requestAnimationFrame(() => {
       requestAnimationFrame(() => openNote(data.note));
     });
   }
 
   const moveNote = useCallback(async (id: string, x: number, y: number, zIndex: number) => {
+    const previous = notesRef.current.find((note) => note.id === id);
     setNotes((prev) =>
       prev.map((note) =>
         note.id === id ? stampNow({ ...note, x, y, zIndex }) : note,
       ),
     );
-    await fetch(`/api/notes/${id}`, {
+    const response = await fetch(`/api/notes/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ x, y, zIndex }),
     });
-  }, []);
+    if (!response.ok && previous) {
+      // GAP-011: revert the optimistic position and resync on failure.
+      setNotes((prev) =>
+        prev.map((note) => (note.id === id ? previous : note)),
+      );
+      void syncNotes();
+    }
+  }, [syncNotes]);
 
   async function saveNote(input: {
     id: string;
@@ -357,8 +569,27 @@ function BoardAppInner({
         title: input.title,
         preview: input.preview,
         color: input.color,
+        expectedUpdatedAt: openState?.baselineUpdatedAt,
       }),
     });
+    if (response.status === 409) {
+      // GAP-016: a peer saved while we were editing — surface the conflict.
+      const data = (await response.json()) as { note: CanvasNote };
+      setNotes((prev) =>
+        prev.map((n) => (n.id === data.note.id ? data.note : n)),
+      );
+      setOpenState((current) =>
+        current && current.note.id === data.note.id
+          ? {
+              ...current,
+              note: { ...current.note, updatedAt: data.note.updatedAt },
+              baselineUpdatedAt: data.note.updatedAt,
+            }
+          : current,
+      );
+      setConflict("This note was updated by someone else — last save wins");
+      throw new Error("conflict");
+    }
     if (!response.ok) {
       throw new Error("Failed to save note");
     }
@@ -374,6 +605,7 @@ function BoardAppInner({
         : current,
     );
     setEditorDirty(false);
+    setConflict(null);
   }
 
   async function deleteNote(id: string) {
@@ -434,6 +666,7 @@ function BoardAppInner({
         search={search}
         onSearchChange={setSearch}
       />
+      <ViewerChip count={viewerClientIds.size} />
       {loading && notes.length === 0 ? (
         <p className="p-8 text-sm text-ink-muted">Loading notes…</p>
       ) : view === "list" ? (
@@ -457,6 +690,8 @@ function BoardAppInner({
           note={openState.note}
           origin={openState.origin}
           warning={editorWarning}
+          conflict={conflict}
+          onDismissConflict={() => setConflict(null)}
           onDirtyChange={setEditorDirty}
           onClose={closeEditor}
           onSave={saveNote}
