@@ -3,6 +3,7 @@ import { requireApiUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { resolveBoard, serializeNote } from "@/lib/notes";
 import {
+  canSubscribe,
   currentSeq,
   subscribeRealtime,
   touchSubscriber,
@@ -46,6 +47,16 @@ export async function GET(request: NextRequest) {
     });
   }
 
+  // Bound per-room connections before opening the stream (clientId is
+  // caller-chosen, so one member must not be able to open unbounded streams).
+  const capError = canSubscribe(board.id, clientId);
+  if (capError) {
+    return new Response(JSON.stringify({ error: capError }), {
+      status: 503,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   const encoder = new TextEncoder();
   let subId: string | null = null;
   let heartbeat: ReturnType<typeof setInterval> | null = null;
@@ -63,13 +74,19 @@ export async function GET(request: NextRequest) {
       };
 
       const userName = user.name || user.email || "Someone";
-      const { subId: id, snapshot } = subscribeRealtime(
+      const result = subscribeRealtime(
         board.id,
         user.id,
         userName,
         clientId,
         (payload, seq) => send(payload.event, payload.data, seq),
       );
+      if ("error" in result) {
+        // Race with a concurrent subscribe that filled the cap.
+        controller.error(new Error(result.error));
+        return;
+      }
+      const { subId: id, snapshot } = result;
       subId = id;
       send("presence.snapshot", { editors: snapshot.editors });
 

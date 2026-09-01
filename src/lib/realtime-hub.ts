@@ -27,6 +27,10 @@ type Room = {
 
 const PRESENCE_TTL_MS = 90_000;
 const SWEEP_INTERVAL_MS = 30_000;
+// Bound per-room connection growth: one member must not be able to exhaust
+// memory/FDs by opening unbounded streams (clientId is caller-chosen).
+const MAX_SUBSCRIBERS_PER_ROOM = 100;
+const MAX_SUBSCRIBERS_PER_CLIENT = 2;
 
 const globalForRealtime = globalThis as unknown as {
   __stickyRealtimeRoomsV2?: Map<string, Room>;
@@ -123,14 +127,35 @@ function startSweep() {
   setInterval(sweepExpiredPresence, SWEEP_INTERVAL_MS);
 }
 
+export function canSubscribe(
+  boardId: string,
+  clientId: string,
+): string | null {
+  const room = rooms.get(boardId);
+  if (!room) return null;
+  if (room.subscribers.size >= MAX_SUBSCRIBERS_PER_ROOM) {
+    return "room_full";
+  }
+  let sameClient = 0;
+  for (const sub of room.subscribers.values()) {
+    if (sub.clientId === clientId) sameClient += 1;
+  }
+  if (sameClient >= MAX_SUBSCRIBERS_PER_CLIENT) {
+    return "too_many_connections";
+  }
+  return null;
+}
+
 export function subscribeRealtime(
   boardId: string,
   userId: string,
   userName: string,
   clientId: string,
   send: (payload: ServerEvent, seq: number) => void,
-): { subId: string; snapshot: { editors: PresenceEditor[] } } {
+): { subId: string; snapshot: { editors: PresenceEditor[] } } | { error: string } {
   const room = getRoom(boardId);
+  const capError = canSubscribe(boardId, clientId);
+  if (capError) return { error: capError };
   const subId = `${clientId}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
   room.subscribers.set(subId, {
     id: subId,
@@ -195,14 +220,22 @@ export function touchSubscriber(boardId: string, subId: string): boolean {
 export function pingSubscriber(boardId: string, clientId: string): boolean {
   const room = rooms.get(boardId);
   if (!room) return false;
-  let found = false;
+  // Bump only the newest subscriber for this tab: after an EventSource
+  // reconnect the prior (possibly blackholed) connection lingers until the
+  // sweep evicts it — pinging it too would keep the zombie alive forever.
+  let newest: Subscriber | null = null;
+  let newestTs = -1;
   for (const sub of room.subscribers.values()) {
-    if (sub.clientId === clientId) {
-      sub.lastSeenAt = Date.now();
-      found = true;
+    if (sub.clientId !== clientId) continue;
+    const ts = Number(sub.id.split(":").at(-2) ?? 0);
+    if (ts > newestTs) {
+      newestTs = ts;
+      newest = sub;
     }
   }
-  return found;
+  if (!newest) return false;
+  newest.lastSeenAt = Date.now();
+  return true;
 }
 
 export function unsubscribeRealtime(boardId: string, subId: string) {
