@@ -48,6 +48,7 @@ export function BoardCanvas({
   const surfaceRef = useRef<HTMLDivElement>(null);
   const [menu, setMenu] = useState<MenuState>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragMoved, setDragMoved] = useState(false);
   const [localNotes, setLocalNotes] = useState(notes);
   const dragRef = useRef<{
     id: string;
@@ -140,6 +141,7 @@ export function BoardCanvas({
       pointerId: event.pointerId,
     };
     setDraggingId(note.id);
+    setDragMoved(false);
     setLocalNotes((prev) =>
       prev.map((n) => (n.id === note.id ? { ...n, zIndex: maxZ } : n)),
     );
@@ -153,6 +155,7 @@ export function BoardCanvas({
     if (!drag.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
     if (!drag.moved) {
       drag.moved = true;
+      setDragMoved(true);
       event.preventDefault();
       try {
         surfaceRef.current?.setPointerCapture(drag.pointerId);
@@ -181,6 +184,7 @@ export function BoardCanvas({
     const note = localNotes.find((n) => n.id === drag.id);
     dragRef.current = null;
     setDraggingId(null);
+    setDragMoved(false);
 
     if (drag.moved) {
       onMoveNote(drag.id, drag.lastX, drag.lastY, drag.maxZ);
@@ -210,7 +214,7 @@ export function BoardCanvas({
   }
 
   const visibleNotes = localNotes.filter((note) => note.id !== openNoteId);
-  const peels = peelByNoteId(visibleNotes, draggingId);
+  const peels = peelByNoteId(visibleNotes, dragMoved ? draggingId : null);
 
   const menuItemClass =
     "w-full rounded-md px-3 py-2.5 text-left text-sm text-ink transition hover:bg-chrome enabled:hover:bg-chrome disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent";
@@ -239,7 +243,7 @@ export function BoardCanvas({
           key={note.id}
           note={note}
           dragging={draggingId === note.id}
-          overlapPeel={peels.get(note.id) ?? 0}
+          peel={peels.get(note.id) ?? 0}
           hidden={openNoteId === note.id}
           onPointerDown={startDrag}
           onOpen={onOpenNote}

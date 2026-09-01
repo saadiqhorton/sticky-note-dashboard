@@ -26,31 +26,38 @@ function read(relPath) {
 }
 
 const overlapLib = read("src/lib/note-overlap.ts");
-const card = read("src/components/sticky-note-card.tsx");
+const stickyNote = read("src/components/sticky-note-card.tsx");
 const canvas = read("src/components/board-canvas.tsx");
 const css = read("src/app/globals.css");
 
 record(
   "overlap helper peels both the dragged note and covered neighbors",
-  /peels\.set\(other\.id, ratio\)/.test(overlapLib) &&
+  /peels\.set\(other\.id, (?:clampPeel\()?ratio/.test(overlapLib) &&
     /DRAG_PEEL_FLOOR/.test(overlapLib) &&
     /peels\.set\(draggingId/.test(overlapLib),
   "src/lib/note-overlap.ts must compute neighbor peel and a drag floor",
 );
 
+const canvasWiresPeel =
+  /peelByNoteId\(visibleNotes/.test(canvas) &&
+  /peel=\{peels\.get\(note\.id\) \?\? 0\}/.test(canvas);
+const peelsGatedOnDragMoved =
+  /dragMoved/.test(canvas) &&
+  (/peelByNoteId\([\s\S]*null/.test(canvas) ||
+    /dragMoved\s*\?\s*draggingId\s*:\s*null/.test(canvas));
+
 record(
-  "canvas passes overlap peel into each sticky card",
-  /peelByNoteId\(visibleNotes, draggingId\)/.test(canvas) &&
-    /overlapPeel=\{peels\.get\(note\.id\) \?\? 0\}/.test(canvas),
-  "board-canvas.tsx must wire peelByNoteId → overlapPeel",
+  "canvas passes peel into each sticky note after drag has moved",
+  canvasWiresPeel && peelsGatedOnDragMoved,
+  "board-canvas.tsx must wire peelByNoteId → peel only after dragMoved",
 );
 
 record(
-  "card maps peel to flap transform and exposes data-peel",
-  /flapTransform\(peel\)/.test(card) &&
-    /data-peel=\{peel\.toFixed\(2\)\}/.test(card) &&
-    /paper-flap-inner/.test(card),
-  "sticky-note-card.tsx must drive the flap from overlapPeel",
+  "sticky note maps peel to flap transform and exposes data-peel",
+  /flapTransform\(peel\)/.test(stickyNote) &&
+    /data-peel=\{peel\.toFixed\(2\)\}/.test(stickyNote) &&
+    /paper-flap-inner/.test(stickyNote),
+  "sticky-note-card.tsx must drive the flap from peel",
 );
 
 record(

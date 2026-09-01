@@ -1,6 +1,7 @@
 "use client";
 
-import { flapTransform } from "@/lib/note-overlap";
+import { clampPeel } from "@/lib/note-overlap";
+import { flapTransform } from "@/lib/paper-flap";
 import { stickyColors, type StickyColorKey } from "@/lib/theme";
 
 export type CanvasNote = {
@@ -23,7 +24,7 @@ type StickyNoteCardProps = {
   selected?: boolean;
   dragging?: boolean;
   /** 0–1 paper-flap peel from overlap (and a drag floor while moving). */
-  overlapPeel?: number;
+  peel?: number;
   hidden?: boolean;
   onPointerDown?: (event: React.PointerEvent, note: CanvasNote) => void;
   onOpen?: (note: CanvasNote) => void;
@@ -34,14 +35,14 @@ export function StickyNoteCard({
   note,
   selected,
   dragging,
-  overlapPeel = 0,
+  peel: peelAmount = 0,
   hidden,
   onPointerDown,
   onOpen,
   onContextMenu,
 }: StickyNoteCardProps) {
-  const peel = Math.min(1, Math.max(0, overlapPeel));
-  const flapOpen = Boolean(dragging || selected || peel > 0.02);
+  const peel = clampPeel(peelAmount);
+  const flapOpen = Boolean(selected || peel > 0);
   const { rotateDeg, scale } = flapTransform(peel);
   const peeling = peel > 0.2;
 

@@ -9,6 +9,10 @@ export type NoteRect = {
 /** Slight curl while dragging even when the note is over empty paper. */
 export const DRAG_PEEL_FLOOR = 0.35;
 
+export function clampPeel(n: number): number {
+  return Math.min(1, Math.max(0, n));
+}
+
 export function noteOverlapRatio(a: NoteRect, b: NoteRect): number {
   const left = Math.max(a.x, b.x);
   const right = Math.min(a.x + a.width, b.x + b.width);
@@ -40,17 +44,9 @@ export function peelByNoteId(
     if (other.id === dragged.id) continue;
     const ratio = noteOverlapRatio(dragged, other);
     if (ratio <= 0) continue;
-    peels.set(other.id, ratio);
+    peels.set(other.id, clampPeel(ratio));
     if (ratio > dragOverlap) dragOverlap = ratio;
   }
-  peels.set(draggingId, Math.min(1, Math.max(DRAG_PEEL_FLOOR, dragOverlap)));
+  peels.set(draggingId, clampPeel(Math.max(DRAG_PEEL_FLOOR, dragOverlap)));
   return peels;
-}
-
-export function flapTransform(peel: number): { rotateDeg: number; scale: number } {
-  const amount = Math.min(1, Math.max(0, peel));
-  return {
-    rotateDeg: 45 + amount * 27,
-    scale: 1 + amount * 0.16,
-  };
 }

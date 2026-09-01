@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import {
+  clampPeel,
   DRAG_PEEL_FLOOR,
-  flapTransform,
   noteOverlapRatio,
   peelByNoteId,
   type NoteRect,
 } from "../src/lib/note-overlap";
+import { flapTransform } from "../src/lib/paper-flap";
 
 let failures = 0;
 
@@ -59,9 +60,24 @@ test("dragged note and covered neighbor both peel by overlap", () => {
   assert.equal(peels.get("b"), 0.5);
 });
 
+test("overlap below the floor still peels the dragged note at the floor", () => {
+  const peels = peelByNoteId(
+    [rect("a", 0, 0, 100, 100), rect("b", 80, 0, 100, 100)],
+    "a",
+  );
+  assert.equal(peels.get("a"), 0.35);
+  assert.equal(peels.get("b"), 0.2);
+});
+
 test("no peels when nothing is dragging", () => {
   const peels = peelByNoteId([rect("a", 0, 0), rect("b", 10, 10)], null);
   assert.equal(peels.size, 0);
+});
+
+test("clampPeel keeps values in 0–1", () => {
+  assert.equal(clampPeel(-0.2), 0);
+  assert.equal(clampPeel(0.4), 0.4);
+  assert.equal(clampPeel(1.8), 1);
 });
 
 test("flap at drag floor matches the previous 54deg / 1.05 curl", () => {
