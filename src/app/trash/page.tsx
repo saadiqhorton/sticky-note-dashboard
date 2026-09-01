@@ -38,7 +38,7 @@ export default async function TrashPage() {
             Soft-deleted notes. Anyone can restore; admins can purge forever.
           </p>
         </div>
-        <Link href="/" className="rounded-lg bg-ink px-4 py-2 text-sm font-semibold text-sticky-yellow">
+        <Link href="/?board=team" className="rounded-lg bg-ink px-4 py-2 text-sm font-semibold text-sticky-yellow">
           ← Board
         </Link>
       </div>
