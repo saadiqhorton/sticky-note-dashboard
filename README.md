@@ -79,6 +79,10 @@ when using the optional `docker-compose.dev.yml` overlay.
 
 ## Still coming
 
-- TipTap rich text + checklist + attachments
+- Rich text editing + checklists in note bodies
+- File attachments
 - Stronger paper-flap motion polish
-- Pan/zoom canvas
+- Pan/zoom canvas + clipboard paste on board
+- Mobile default-to-list view
+- Autosave flush on unexpected navigation
+- Reliable drag-move saves
