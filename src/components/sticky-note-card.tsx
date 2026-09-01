@@ -69,7 +69,7 @@ export function StickyNoteCard({
       <span
         aria-hidden
         className={`pointer-events-none absolute right-0 top-0 h-8 w-8 overflow-hidden transition-opacity duration-200 ease-out motion-reduce:transition-none ${
-          dragging ? "opacity-100" : "opacity-0"
+          dragging || selected ? "opacity-100" : "opacity-0"
         }`}
       >
         {/* Paper corner flap — always mounted so the drag peel transition plays; hidden at rest. */}
