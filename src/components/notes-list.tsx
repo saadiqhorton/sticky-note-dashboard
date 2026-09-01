@@ -3,6 +3,13 @@
 import type { CanvasNote } from "@/components/sticky-note-card";
 import { stickyColors } from "@/lib/theme";
 
+function formatUpdatedAt(iso: string | undefined): string | null {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleString();
+}
+
 type NotesListProps = {
   notes: CanvasNote[];
   query: string;
@@ -48,6 +55,18 @@ export function NotesList({ notes, query, onOpenNote }: NotesListProps) {
                   {note.preview || "Empty note"}
                 </span>
               </span>
+              {(() => {
+                const formatted = formatUpdatedAt(note.updatedAt);
+                if (!formatted) return null;
+                return (
+                  <time
+                    dateTime={note.updatedAt}
+                    className="shrink-0 text-sm text-ink-muted"
+                  >
+                    Last edited {formatted}
+                  </time>
+                );
+              })()}
             </button>
           </li>
         ))}
