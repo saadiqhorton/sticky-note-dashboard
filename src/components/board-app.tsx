@@ -16,7 +16,6 @@ type BoardAppProps = {
   isAdmin: boolean;
   currentUserId: string;
   currentUserName: string;
-  initialBoard: "team" | "private";
   initialNotes: CanvasNote[];
 };
 
@@ -218,13 +217,16 @@ function BoardAppInner({
   useEffect(() => {
     if (displayedBoardRef.current === null) {
       // First paint: show the server-rendered notes for the current board
-      // immediately instead of waiting on the fetch.
+      // immediately instead of waiting on the fetch. The realtime stream
+      // pushes a healing snapshot on connect, and the visibilitychange
+      // handler is a refetch backstop.
       setNotes(initialNotes);
     } else if (displayedBoardRef.current !== board) {
       // Board param changed: clear the previous board's notes so we don't
       // briefly show stale notes while the new board's fetch is running.
       // The loading state (notes.length === 0) covers the gap.
       setNotes([]);
+      void syncNotes({ showLoading: true });
     }
     // `initialNotes` is intentionally omitted from the deps: page.tsx rebuilds
     // it on every soft navigation (notes.map(serializeNote)), so including it
@@ -232,7 +234,6 @@ function BoardAppInner({
     displayedBoardRef.current = board;
     setEditingByNoteId({});
     setViewerClientIds(new Set());
-    void syncNotes({ showLoading: true });
   }, [board, syncNotes]); // eslint-disable-line react-hooks/exhaustive-deps -- initialNotes only used for first paint
 
   // Refetch when the tab becomes visible (backstop; live sync is push-based)

@@ -47,7 +47,6 @@ export default async function HomePage({
       isAdmin={user.role === "admin"}
       currentUserId={user.id}
       currentUserName={user.name || user.email || "You"}
-      initialBoard={boardParam}
       initialNotes={notes.map(serializeNote)}
     />
   );
