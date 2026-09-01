@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 
@@ -34,7 +34,7 @@ function Chip({
   );
 }
 
-export function BoardChrome({ isAdmin, search, onSearchChange }: BoardChromeProps) {
+function BoardChromeContent({ isAdmin, search, onSearchChange }: BoardChromeProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -128,5 +128,19 @@ export function BoardChrome({ isAdmin, search, onSearchChange }: BoardChromeProp
         </div>
       </nav>
     </header>
+  );
+}
+
+function BoardChromeFallback() {
+  return (
+    <header className="sticky top-0 z-50 flex h-[61px] items-center border-b border-cork/20 bg-chrome/95 px-6" />
+  );
+}
+
+export function BoardChrome(props: BoardChromeProps) {
+  return (
+    <Suspense fallback={<BoardChromeFallback />}>
+      <BoardChromeContent {...props} />
+    </Suspense>
   );
 }
