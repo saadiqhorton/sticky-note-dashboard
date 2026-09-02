@@ -14,6 +14,7 @@
   --sticky-green: #c5e8c0;
   --background: var(--paper);
   --foreground: var(--ink);
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 @theme inline {
@@ -56,12 +57,63 @@ body {
     8px 20px 32px rgba(44, 36, 22, 0.22);
 }
 
-.paper-flap-inner {
-  transform-origin: center;
-  transition:
-    transform 200ms ease-out,
-    background 200ms ease-out,
-    box-shadow 200ms ease-out;
+.paper-flap {
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+  top: 0;
+  z-index: 3;
+  width: 5.25rem;
+  height: 5.25rem;
+  overflow: visible;
+  perspective: 160px;
+  transform-style: preserve-3d;
+}
+
+.paper-flap-reveal,
+.paper-flap-face {
+  clip-path: ellipse(100% 100% at 100% 0);
+}
+
+.paper-flap-reveal {
+  position: absolute;
+  inset: 0;
+  transform-origin: 100% 0;
+  background: radial-gradient(
+    120% 90% at 100% 0%,
+    rgba(44, 36, 22, 0.46) 0%,
+    rgba(44, 36, 22, 0.18) 58%,
+    rgba(44, 36, 22, 0.03) 100%
+  );
+}
+
+.paper-flap-leaf {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0% 100%;
+  transform-style: preserve-3d;
+  filter: drop-shadow(-6px 8px 10px rgba(44, 36, 22, 0.3));
+}
+
+.paper-flap-face {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      80% 60% at 88% 18%,
+      color-mix(in srgb, var(--flap-tint) 18%, #fffef8) 0%,
+      transparent 46%
+    ),
+    radial-gradient(
+      120% 100% at 100% 0%,
+      color-mix(in srgb, var(--flap-tint) 22%, var(--paper)) 0%,
+      color-mix(in srgb, var(--flap-tint) 38%, #e2c98a) 100%
+    );
+  box-shadow:
+    inset 12px -10px 14px rgba(44, 36, 22, 0.14),
+    inset -2px 3px 0 rgba(255, 255, 255, 0.5);
+  mask-image: radial-gradient(100% 100% at 100% 0, #000 70%, transparent 86%);
+  backface-visibility: hidden;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -69,7 +121,8 @@ body {
     transition: none !important;
   }
 
-  .paper-flap-inner {
-    transition: none;
+  .paper-flap-leaf,
+  .paper-flap-reveal {
+    transition: none !important;
   }
 }

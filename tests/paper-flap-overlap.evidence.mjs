@@ -53,19 +53,22 @@ record(
 );
 
 record(
-  "sticky note maps peel to flap transform and exposes data-peel",
-  /flapTransform\(peel\)/.test(stickyNote) &&
-    /data-peel=\{peel\.toFixed\(2\)\}/.test(stickyNote) &&
-    /paper-flap-inner/.test(stickyNote),
-  "sticky-note-card.tsx must drive the flap from peel",
+  "sticky note maps peel to the paper flap and exposes data-peel",
+    /<PaperFlap peel=\{visualPeel\} tint=/.test(stickyNote) &&
+    /data-peel=\{peel\.toFixed\(2\)\}/.test(stickyNote),
+  "sticky-note-card.tsx must drive PaperFlap from peel",
 );
 
 record(
-  "flap motion honors reduced-motion",
-  /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*\.paper-flap-inner \{[\s\S]*transition:\s*none/.test(
-    css,
-  ),
-  "globals.css must disable .paper-flap-inner transitions under reduced motion",
+  "flap is a 3d dog-ear with reduced-motion jumps",
+  /rotateX\(/.test(read("src/lib/paper-flap.ts")) &&
+    /rotateY\(/.test(read("src/lib/paper-flap.ts")) &&
+    /paper-flap-leaf/.test(css) &&
+    /paper-flap-reveal/.test(css) &&
+    /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*\.paper-flap-leaf,[\s\S]*transition:\s*none/.test(
+      css,
+    ),
+  "flap must fold in 3d and skip motion when the user prefers reduced motion",
 );
 
 const unit = spawnSync("npx", ["tsx", "tests/note-overlap.test.ts"], {

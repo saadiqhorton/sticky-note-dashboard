@@ -6,7 +6,7 @@ import {
   peelByNoteId,
   type NoteRect,
 } from "../src/lib/note-overlap";
-import { flapTransform } from "../src/lib/paper-flap";
+import { flapMotion } from "../src/lib/paper-flap";
 
 let failures = 0;
 
@@ -80,19 +80,37 @@ test("clampPeel keeps values in 0–1", () => {
   assert.equal(clampPeel(1.8), 1);
 });
 
-test("flap at drag floor matches the previous 54deg / 1.05 curl", () => {
-  const { rotateDeg, scale } = flapTransform(DRAG_PEEL_FLOOR);
-  assert.ok(Math.abs(rotateDeg - 54.45) < 0.01);
-  assert.ok(Math.abs(scale - 1.056) < 0.001);
+test("resting flap is hidden and already posed above scale 0.9", () => {
+  const rest = flapMotion(0);
+  assert.equal(rest.leafOpacity, 0);
+  assert.equal(rest.revealOpacity, 0);
+  assert.equal(
+    rest.leafTransform,
+    "translate3d(0px, 0px, 0px) rotateX(8deg) rotateY(12deg) rotateZ(-10deg) scale(0.94)",
+  );
+  assert.equal(rest.revealTransform, "scale(0.78)");
 });
 
-test("full peel curls further than the drag-only flap", () => {
-  const rest = flapTransform(0);
-  const full = flapTransform(1);
-  assert.equal(rest.rotateDeg, 45);
-  assert.equal(rest.scale, 1);
-  assert.equal(full.rotateDeg, 72);
-  assert.equal(full.scale, 1.16);
+test("drag floor is a 3d crease fold, not a 2d square spin", () => {
+  const floor = flapMotion(DRAG_PEEL_FLOOR);
+  assert.equal(floor.leafOpacity, 0.948);
+  assert.equal(
+    floor.leafTransform,
+    "translate3d(2.8px, -4.2px, 7px) rotateX(17.1deg) rotateY(19.7deg) rotateZ(-12.8deg) scale(0.968)",
+  );
+  assert.equal(floor.revealOpacity, 0.308);
+  assert.equal(floor.revealTransform, "scale(0.857)");
+});
+
+test("full peel folds further than the drag floor", () => {
+  const full = flapMotion(1);
+  assert.equal(full.leafOpacity, 1);
+  assert.equal(
+    full.leafTransform,
+    "translate3d(8px, -12px, 20px) rotateX(34deg) rotateY(34deg) rotateZ(-18deg) scale(1.02)",
+  );
+  assert.equal(full.revealOpacity, 0.88);
+  assert.equal(full.revealTransform, "scale(1)");
 });
 
 if (failures > 0) {

@@ -1,7 +1,7 @@
 "use client";
 
+import { PaperFlap } from "@/components/paper-flap";
 import { clampPeel } from "@/lib/note-overlap";
-import { flapTransform } from "@/lib/paper-flap";
 import { stickyColors, type StickyColorKey } from "@/lib/theme";
 
 export type CanvasNote = {
@@ -42,9 +42,7 @@ export function StickyNoteCard({
   onContextMenu,
 }: StickyNoteCardProps) {
   const peel = clampPeel(peelAmount);
-  const flapOpen = Boolean(selected || peel > 0);
-  const { rotateDeg, scale } = flapTransform(peel);
-  const peeling = peel > 0.2;
+  const visualPeel = selected && peel === 0 ? 0.22 : peel;
 
   return (
     <div
@@ -64,7 +62,7 @@ export function StickyNoteCard({
           onOpen?.(note);
         }
       }}
-      className={`absolute origin-center rounded-sm p-4 text-left transition-opacity select-none ${
+      className={`absolute origin-center overflow-visible rounded-sm p-4 text-left transition-opacity select-none ${
         dragging ? "sticky-shadow-lifted cursor-grabbing" : "sticky-shadow cursor-grab"
       } ${selected ? "ring-2 ring-ink/40" : ""} ${hidden ? "opacity-0 pointer-events-none" : "opacity-100"}`}
       style={{
@@ -77,24 +75,7 @@ export function StickyNoteCard({
         transform: `rotate(${dragging ? note.rotation - 4 : note.rotation}deg)`,
       }}
     >
-      <span
-        aria-hidden
-        className={`pointer-events-none absolute right-0 top-0 h-8 w-8 overflow-hidden transition-opacity duration-200 ease-out motion-reduce:transition-none ${
-          flapOpen ? "opacity-100" : "opacity-0"
-        }`}
-      >
-        {/* Always mounted so peel/lift can transition instead of popping in. */}
-        <span
-          className={`paper-flap-inner absolute -right-4 -top-4 h-10 w-10 ${
-            peeling
-              ? "bg-linear-to-br from-chrome to-paper shadow-lg shadow-ink/25"
-              : "bg-paper shadow"
-          }`}
-          style={{
-            transform: `rotate(${rotateDeg}deg) scale(${scale})`,
-          }}
-        />
-      </span>
+      <PaperFlap peel={visualPeel} tint={stickyColors[note.color]} />
       <p className="font-display text-lg leading-tight text-ink pointer-events-none">
         {note.title}
       </p>
