@@ -57,63 +57,53 @@ body {
     8px 20px 32px rgba(44, 36, 22, 0.22);
 }
 
-.paper-flap {
+.paper-fold {
   pointer-events: none;
   position: absolute;
   right: 0;
   top: 0;
   z-index: 3;
-  width: 5.25rem;
-  height: 5.25rem;
   overflow: visible;
-  perspective: 160px;
-  transform-style: preserve-3d;
 }
 
-.paper-flap-reveal,
-.paper-flap-face {
-  clip-path: ellipse(100% 100% at 100% 0);
-}
-
-.paper-flap-reveal {
+.paper-fold-shade,
+.paper-fold-back {
   position: absolute;
   inset: 0;
-  transform-origin: 100% 0;
-  background: radial-gradient(
-    120% 90% at 100% 0%,
-    rgba(44, 36, 22, 0.46) 0%,
-    rgba(44, 36, 22, 0.18) 58%,
-    rgba(44, 36, 22, 0.03) 100%
+}
+
+/* Interior of the note, along the crease. */
+.paper-fold-shade {
+  clip-path: polygon(0 0, 100% 100%, 0 100%);
+  background: linear-gradient(
+    225deg,
+    rgba(44, 36, 22, 0.28) 0%,
+    rgba(44, 36, 22, 0.08) 55%,
+    transparent 72%
   );
 }
 
-.paper-flap-leaf {
-  position: absolute;
-  inset: 0;
-  transform-origin: 0% 100%;
-  transform-style: preserve-3d;
-  filter: drop-shadow(-6px 8px 10px rgba(44, 36, 22, 0.3));
+/* Reverse of the paper, filling the clipped corner. */
+.paper-fold-back {
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+  background:
+    linear-gradient(
+      135deg,
+      transparent 47%,
+      rgba(255, 253, 248, 0.85) 50%,
+      rgba(44, 36, 22, 0.16) 52%,
+      transparent 56%
+    ),
+    linear-gradient(225deg, #fffef8 0%, var(--paper) 42%, #ead6a6 100%);
+  box-shadow: -1px 2px 3px rgba(44, 36, 22, 0.18);
 }
 
-.paper-flap-face {
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(
-      80% 60% at 88% 18%,
-      color-mix(in srgb, var(--flap-tint) 18%, #fffef8) 0%,
-      transparent 46%
-    ),
-    radial-gradient(
-      120% 100% at 100% 0%,
-      color-mix(in srgb, var(--flap-tint) 22%, var(--paper)) 0%,
-      color-mix(in srgb, var(--flap-tint) 38%, #e2c98a) 100%
-    );
-  box-shadow:
-    inset 12px -10px 14px rgba(44, 36, 22, 0.14),
-    inset -2px 3px 0 rgba(255, 255, 255, 0.5);
-  mask-image: radial-gradient(100% 100% at 100% 0, #000 70%, transparent 86%);
-  backface-visibility: hidden;
+.sticky-note-face[data-rest="true"] {
+  transition: clip-path 200ms var(--ease-out);
+}
+
+.sticky-note-face[data-rest="false"] {
+  transition: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -121,8 +111,8 @@ body {
     transition: none !important;
   }
 
-  .paper-flap-leaf,
-  .paper-flap-reveal {
+  .paper-fold,
+  .sticky-note-face {
     transition: none !important;
   }
 }

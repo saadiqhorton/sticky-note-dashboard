@@ -53,22 +53,22 @@ record(
 );
 
 record(
-  "sticky note maps peel to the paper flap and exposes data-peel",
-    /<PaperFlap peel=\{visualPeel\} tint=/.test(stickyNote) &&
+  "sticky note maps peel to the paper fold and exposes data-peel",
+  /<PaperFlap/.test(stickyNote) &&
+    /flapGeometry\(visualPeel/.test(stickyNote) &&
     /data-peel=\{peel\.toFixed\(2\)\}/.test(stickyNote),
-  "sticky-note-card.tsx must drive PaperFlap from peel",
+  "sticky-note-card.tsx must clip the note face and draw the fold from peel",
 );
 
 record(
-  "flap is a 3d dog-ear with reduced-motion jumps",
-  /rotateX\(/.test(read("src/lib/paper-flap.ts")) &&
-    /rotateY\(/.test(read("src/lib/paper-flap.ts")) &&
-    /paper-flap-leaf/.test(css) &&
-    /paper-flap-reveal/.test(css) &&
-    /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*\.paper-flap-leaf,[\s\S]*transition:\s*none/.test(
+  "fold is a corner dog-ear with reduced-motion jumps",
+  /polygon\(0px 0px/.test(read("src/lib/paper-flap.ts")) &&
+    /paper-fold-back/.test(css) &&
+    /sticky-note-face/.test(css) &&
+    /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*\.paper-fold,[\s\S]*transition:\s*none/.test(
       css,
     ),
-  "flap must fold in 3d and skip motion when the user prefers reduced motion",
+  "flap must clip a triangular corner and skip motion when the user prefers reduced motion",
 );
 
 const unit = spawnSync("npx", ["tsx", "tests/note-overlap.test.ts"], {

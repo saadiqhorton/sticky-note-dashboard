@@ -1,51 +1,40 @@
 "use client";
 
 import { useRef } from "react";
-import { flapMotion } from "@/lib/paper-flap";
+import { flapGeometry } from "@/lib/paper-flap";
 
 type PaperFlapProps = {
   peel: number;
-  tint: string;
+  width: number;
+  height: number;
 };
 
-export function PaperFlap({ peel, tint }: PaperFlapProps) {
+export function PaperFlap({ peel, width, height }: PaperFlapProps) {
   const resting = peel <= 0;
   const wasResting = useRef(true);
   const justLifted = !resting && wasResting.current;
   wasResting.current = resting;
 
-  const motion = flapMotion(peel);
+  const geo = flapGeometry(peel, width, height);
+  if (geo.size <= 0) return null;
+
   const durationMs = resting ? 200 : justLifted ? 160 : 0;
   const transition =
-    durationMs > 0
-      ? `transform ${durationMs}ms var(--ease-out), opacity ${durationMs}ms var(--ease-out)`
-      : "none";
+    durationMs > 0 ? `opacity ${durationMs}ms var(--ease-out)` : "none";
 
   return (
     <span
       aria-hidden
-      className="paper-flap"
-      data-rest={resting ? "true" : "false"}
-      style={{ ["--flap-tint" as string]: tint }}
+      className="paper-fold"
+      style={{
+        width: geo.size,
+        height: geo.size,
+        opacity: geo.opacity,
+        transition,
+      }}
     >
-      <span
-        className="paper-flap-reveal"
-        style={{
-          opacity: motion.revealOpacity,
-          transform: motion.revealTransform,
-          transition,
-        }}
-      />
-      <span
-        className="paper-flap-leaf"
-        style={{
-          opacity: motion.leafOpacity,
-          transform: motion.leafTransform,
-          transition,
-        }}
-      >
-        <span className="paper-flap-face" />
-      </span>
+      <span className="paper-fold-shade" />
+      <span className="paper-fold-back" />
     </span>
   );
 }

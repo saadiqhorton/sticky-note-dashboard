@@ -1,31 +1,26 @@
 import { clampPeel } from "@/lib/note-overlap";
 
-export type FlapMotion = {
-  leafOpacity: number;
-  leafTransform: string;
-  revealOpacity: number;
-  revealTransform: string;
+export type FlapGeometry = {
+  size: number;
+  opacity: number;
+  clipPath: string;
 };
 
 function qty(value: number, digits = 2): number {
   return Number(value.toFixed(digits));
 }
 
-/**
- * GPU poses for a top-right paper curl.
- * Scale stays ≥ 0.94 so the curl never appears from nothing.
- * The leaf uses rotateX/Y/Z so the corner actually lifts off the note.
- */
-export function flapMotion(peel: number): FlapMotion {
+/** Sharp top-right dog-ear. Size 0 leaves the note rectangular. */
+export function flapGeometry(
+  peel: number,
+  width: number,
+  height: number,
+): FlapGeometry {
   const t = clampPeel(peel);
-  const rotateX = qty(8 + t * 26);
-  const rotateY = qty(12 + t * 22);
-  const rotateZ = qty(-10 - t * 8);
-  const scale = qty(0.94 + t * 0.08, 3);
+  const size = t === 0 ? 0 : qty(12 + t * 20);
   return {
-    leafOpacity: t === 0 ? 0 : qty(0.92 + t * 0.08, 3),
-    leafTransform: `translate3d(${qty(t * 8)}px, ${qty(t * -12)}px, ${qty(t * 20)}px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) rotateZ(${rotateZ}deg) scale(${scale})`,
-    revealOpacity: qty(t * 0.88, 3),
-    revealTransform: `scale(${qty(0.78 + t * 0.22, 3)})`,
+    size,
+    opacity: t === 0 ? 0 : 1,
+    clipPath: `polygon(0px 0px, ${qty(width - size)}px 0px, ${width}px ${size}px, ${width}px ${height}px, 0px ${height}px)`,
   };
 }
