@@ -62,15 +62,17 @@ record(
 );
 
 record(
-  "fold is a corner dog-ear with reduced-motion jumps",
+  "fold lifts the corner with ease-out; reduced motion is gentler",
   /polygon\(0px 0px/.test(read("src/lib/paper-flap.ts")) &&
-    /paper-fold-back/.test(css) &&
+    /paper-fold-front/.test(css) &&
     /paper-fold-arm/.test(css) &&
+    /data-lifted/.test(read("src/components/paper-flap.tsx")) &&
     /sticky-note-face/.test(css) &&
-    /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*\.paper-fold-arm[\s\S]*transition:\s*none/.test(
+    /transition: transform 180ms var\(--ease-out\)/.test(css) &&
+    /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*\.paper-fold-arm[\s\S]*-12deg/.test(
       css,
     ),
-  "flap must clip a triangular corner and skip motion when the user prefers reduced motion",
+  "flap must lift the clipped corner toward the camera and ease, not skip, under reduced motion",
 );
 
 const unit = spawnSync("npx", ["tsx", "tests/note-overlap.test.ts"], {

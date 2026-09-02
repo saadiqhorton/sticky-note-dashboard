@@ -63,16 +63,21 @@ body {
   right: 0;
   top: 0;
   z-index: 4;
-  perspective: 220px;
+  opacity: 0;
+  perspective: 180px;
   perspective-origin: 0% 0%;
   transform-style: preserve-3d;
+  transition: opacity 180ms var(--ease-out);
+}
+
+.paper-fold[data-lifted="true"] {
+  opacity: 1;
 }
 
 .paper-fold-ao,
 .paper-fold-edge,
 .paper-fold-arm,
-.paper-fold-front,
-.paper-fold-back {
+.paper-fold-front {
   position: absolute;
   inset: 0;
 }
@@ -81,10 +86,29 @@ body {
   clip-path: polygon(0 0, 100% 100%, 0 100%);
   background: linear-gradient(
     315deg,
-    rgba(44, 36, 22, 0.22) 0%,
-    rgba(44, 36, 22, 0.08) 38%,
-    transparent 70%
+    rgba(44, 36, 22, 0.18) 0%,
+    rgba(44, 36, 22, 0.06) 42%,
+    transparent 72%
   );
+}
+
+.paper-fold-arm {
+  transform: rotate3d(1, 1, 0, 0deg);
+  transform-origin: 0% 0%;
+  transform-style: preserve-3d;
+  filter: drop-shadow(-2px 3px 3px rgba(44, 36, 22, 0.2));
+  transition: transform 180ms var(--ease-out);
+}
+
+.paper-fold[data-lifted="true"] .paper-fold-arm {
+  transform: rotate3d(1, 1, 0, -28deg);
+}
+
+.paper-fold-front {
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.22) 0%, transparent 48%),
+    var(--fold-tint);
 }
 
 .paper-fold-edge {
@@ -92,58 +116,15 @@ body {
   background: linear-gradient(
     135deg,
     transparent 0%,
-    transparent calc(50% - 2px),
-    rgba(44, 36, 22, 0.2) 50%,
-    transparent calc(50% + 3px),
+    transparent calc(50% - 1.5px),
+    rgba(44, 36, 22, 0.14) 50%,
+    transparent calc(50% + 2px),
     transparent 100%
   );
 }
 
-.paper-fold-arm {
-  transform-origin: 0% 0%;
-  transform-style: preserve-3d;
-  filter: drop-shadow(-4px 6px 5px rgba(44, 36, 22, 0.28));
-}
-
-.paper-fold[data-rest="true"] .paper-fold-arm {
-  transition: transform 200ms var(--ease-out);
-}
-
-.paper-fold[data-rest="false"] .paper-fold-arm {
-  transition: none;
-}
-
-.paper-fold-front,
-.paper-fold-back {
-  clip-path: polygon(0 0, 100% 0, 100% 100%);
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-}
-
-.paper-fold-front {
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.28) 0%, transparent 42%),
-    var(--fold-tint);
-}
-
-.paper-fold-back {
-  background:
-    linear-gradient(
-      135deg,
-      rgba(255, 255, 255, 0.95) 0%,
-      rgba(255, 255, 255, 0.15) 30%,
-      transparent 46%
-    ),
-    linear-gradient(210deg, #fffefb 0%, #f8ecd0 52%, #e4cc96 100%);
-  transform: rotate3d(1, 1, 0, 180deg);
-}
-
-.sticky-note-face[data-rest="true"] {
-  transition: clip-path 200ms var(--ease-out);
-}
-
-.sticky-note-face[data-rest="false"] {
-  transition: none;
+.sticky-note-face {
+  transition: clip-path 180ms var(--ease-out);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -151,8 +132,13 @@ body {
     transition: none !important;
   }
 
+  .paper-fold,
   .paper-fold-arm,
   .sticky-note-face {
-    transition: none !important;
+    transition-duration: 80ms;
+  }
+
+  .paper-fold[data-lifted="true"] .paper-fold-arm {
+    transform: rotate3d(1, 1, 0, -12deg);
   }
 }

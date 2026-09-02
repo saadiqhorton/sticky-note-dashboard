@@ -44,7 +44,6 @@ export function StickyNoteCard({
 }: StickyNoteCardProps) {
   const peel = clampPeel(peelAmount);
   const geo = flapGeometry(peel, note.width, note.height);
-  const resting = peel <= 0;
   const tint = stickyColors[note.color];
 
   return (
@@ -74,12 +73,11 @@ export function StickyNoteCard({
         width: note.width,
         height: note.height,
         zIndex: dragging ? 9999 : note.zIndex,
-        transform: `rotate(${dragging && peel > 0 ? note.rotation - 4 : note.rotation}deg)`,
+        transform: `rotate(${note.rotation}deg)`,
       }}
     >
       <div
         className="sticky-note-face absolute inset-0 rounded-sm p-4"
-        data-rest={resting ? "true" : "false"}
         style={{
           background: tint,
           clipPath: geo.clipPath,
@@ -98,12 +96,7 @@ export function StickyNoteCard({
           </p>
         ) : null}
       </div>
-      <PaperFlap
-        peel={peel}
-        tint={tint}
-        width={note.width}
-        height={note.height}
-      />
+      <PaperFlap peel={peel} tint={tint} />
     </div>
   );
 }

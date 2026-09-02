@@ -4,7 +4,7 @@ import {
   DRAG_PEEL_FLOOR,
   peelByNoteId,
 } from "../src/lib/note-overlap";
-import { flapGeometry } from "../src/lib/paper-flap";
+import { flapGeometry, FOLD_SIZE, LIFT_ANGLE } from "../src/lib/paper-flap";
 
 let failures = 0;
 
@@ -62,14 +62,14 @@ test("resting flap does not bite the note", () => {
   );
 });
 
-test("drag floor bites a small corner dog-ear", () => {
+test("drag lift bites a small corner and hinges toward the camera", () => {
   const floor = flapGeometry(DRAG_PEEL_FLOOR, 220, 200);
-  assert.equal(floor.size, 28.5);
-  assert.equal(floor.angle, 115.7);
+  assert.equal(floor.size, FOLD_SIZE);
+  assert.equal(floor.angle, LIFT_ANGLE);
   assert.equal(floor.opacity, 1);
   assert.equal(
     floor.clipPath,
-    "polygon(0px 0px, 191.5px 0px, 220px 28.5px, 220px 200px, 0px 200px)",
+    `polygon(0px 0px, ${220 - FOLD_SIZE}px 0px, 220px ${FOLD_SIZE}px, 220px 200px, 0px 200px)`,
   );
 });
 
