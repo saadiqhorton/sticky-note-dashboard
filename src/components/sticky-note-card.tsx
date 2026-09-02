@@ -72,7 +72,7 @@ export function StickyNoteCard({
         height: note.height,
         zIndex: dragging ? 9999 : note.zIndex,
         background: stickyColors[note.color],
-        transform: `rotate(${dragging ? note.rotation - 4 : note.rotation}deg)`,
+        transform: `rotate(${dragging && peel > 0 ? note.rotation - 4 : note.rotation}deg)`,
       }}
     >
       <PaperFlap peel={visualPeel} tint={stickyColors[note.color]} />
