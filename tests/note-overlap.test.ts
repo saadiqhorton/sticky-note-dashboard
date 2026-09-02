@@ -92,20 +92,22 @@ test("resting flap does not bite the note", () => {
 
 test("drag floor bites a small corner dog-ear", () => {
   const floor = flapGeometry(DRAG_PEEL_FLOOR, 220, 200);
-  assert.equal(floor.size, 24.3);
+  assert.equal(floor.size, 28.5);
+  assert.equal(floor.angle, 115.7);
   assert.equal(floor.opacity, 1);
   assert.equal(
     floor.clipPath,
-    "polygon(0px 0px, 195.7px 0px, 220px 24.3px, 220px 200px, 0px 200px)",
+    "polygon(0px 0px, 191.5px 0px, 220px 28.5px, 220px 200px, 0px 200px)",
   );
 });
 
 test("full peel bites further than the drag floor", () => {
   const full = flapGeometry(1, 220, 200);
-  assert.equal(full.size, 36);
+  assert.equal(full.size, 48);
+  assert.equal(full.angle, 130);
   assert.equal(
     full.clipPath,
-    "polygon(0px 0px, 184px 0px, 220px 36px, 220px 200px, 0px 200px)",
+    "polygon(0px 0px, 172px 0px, 220px 48px, 220px 200px, 0px 200px)",
   );
 });
 

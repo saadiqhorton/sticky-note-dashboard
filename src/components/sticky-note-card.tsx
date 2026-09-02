@@ -98,7 +98,12 @@ export function StickyNoteCard({
           </p>
         ) : null}
       </div>
-      <PaperFlap peel={peel} width={note.width} height={note.height} />
+      <PaperFlap
+        peel={peel}
+        tint={tint}
+        width={note.width}
+        height={note.height}
+      />
     </div>
   );
 }

@@ -63,9 +63,10 @@ record(
 record(
   "fold is a corner dog-ear with reduced-motion jumps",
   /polygon\(0px 0px/.test(read("src/lib/paper-flap.ts")) &&
-    /paper-fold-ear/.test(css) &&
+    /paper-fold-back/.test(css) &&
+    /paper-fold-arm/.test(css) &&
     /sticky-note-face/.test(css) &&
-    /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*\.paper-fold-ear[\s\S]*transition:\s*none/.test(
+    /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*\.paper-fold-arm[\s\S]*transition:\s*none/.test(
       css,
     ),
   "flap must clip a triangular corner and skip motion when the user prefers reduced motion",

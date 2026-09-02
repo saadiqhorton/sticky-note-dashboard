@@ -63,55 +63,79 @@ body {
   right: 0;
   top: 0;
   z-index: 4;
+  perspective: 220px;
+  perspective-origin: 0% 0%;
+  transform-style: preserve-3d;
 }
 
+.paper-fold-ao,
 .paper-fold-edge,
-.paper-fold-ear {
+.paper-fold-arm,
+.paper-fold-front,
+.paper-fold-back {
   position: absolute;
   inset: 0;
 }
 
-/* Paper thickness along the cut, in the bitten corner. */
+.paper-fold-ao {
+  clip-path: polygon(0 0, 100% 100%, 0 100%);
+  background: linear-gradient(
+    315deg,
+    rgba(44, 36, 22, 0.22) 0%,
+    rgba(44, 36, 22, 0.08) 38%,
+    transparent 70%
+  );
+}
+
 .paper-fold-edge {
   clip-path: polygon(0 0, 100% 0, 100% 100%);
   background: linear-gradient(
     135deg,
     transparent 0%,
-    transparent calc(50% - 1.5px),
-    rgba(44, 36, 22, 0.22) 50%,
-    transparent calc(50% + 2px),
+    transparent calc(50% - 2px),
+    rgba(44, 36, 22, 0.2) 50%,
+    transparent calc(50% + 3px),
     transparent 100%
   );
 }
 
-/* Underside of the folded corner, reflected onto the note. */
-.paper-fold-ear {
-  clip-path: polygon(0 0, 100% 100%, 0 100%);
+.paper-fold-arm {
+  transform-origin: 0% 0%;
+  transform-style: preserve-3d;
+  filter: drop-shadow(-4px 6px 5px rgba(44, 36, 22, 0.28));
+}
+
+.paper-fold[data-rest="true"] .paper-fold-arm {
+  transition: transform 200ms var(--ease-out);
+}
+
+.paper-fold[data-rest="false"] .paper-fold-arm {
+  transition: none;
+}
+
+.paper-fold-front,
+.paper-fold-back {
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.paper-fold-front {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.28) 0%, transparent 42%),
+    var(--fold-tint);
+}
+
+.paper-fold-back {
   background:
     linear-gradient(
       135deg,
-      transparent 46%,
-      rgba(255, 255, 255, 0.7) 49%,
-      rgba(44, 36, 22, 0.22) 52%,
-      transparent 56%
+      rgba(255, 255, 255, 0.95) 0%,
+      rgba(255, 255, 255, 0.15) 30%,
+      transparent 46%
     ),
-    linear-gradient(210deg, #fffef6 0%, #f4e6c4 58%, #d7bf8a 100%);
-  filter: drop-shadow(-2px 3px 2px rgba(44, 36, 22, 0.2));
-  transform-origin: 50% 50%;
-  opacity: 1;
-  transform: scale(1);
-  transition:
-    opacity 160ms var(--ease-out),
-    transform 160ms var(--ease-out);
-
-  @starting-style {
-    opacity: 0;
-    transform: scale(0.94);
-  }
-}
-
-.paper-fold[data-rest="false"] .paper-fold-ear {
-  transition: none;
+    linear-gradient(210deg, #fffefb 0%, #f8ecd0 52%, #e4cc96 100%);
+  transform: rotate3d(1, 1, 0, 180deg);
 }
 
 .sticky-note-face[data-rest="true"] {
@@ -127,7 +151,7 @@ body {
     transition: none !important;
   }
 
-  .paper-fold-ear,
+  .paper-fold-arm,
   .sticky-note-face {
     transition: none !important;
   }
