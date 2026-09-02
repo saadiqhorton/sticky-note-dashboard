@@ -2,9 +2,7 @@ import assert from "node:assert/strict";
 import {
   clampPeel,
   DRAG_PEEL_FLOOR,
-  noteOverlapRatio,
   peelByNoteId,
-  type NoteRect,
 } from "../src/lib/note-overlap";
 import { flapGeometry } from "../src/lib/paper-flap";
 
@@ -21,56 +19,30 @@ function test(name: string, fn: () => void) {
   }
 }
 
-function rect(
-  id: string,
-  x: number,
-  y: number,
-  width = 220,
-  height = 200,
-): NoteRect {
-  return { id, x, y, width, height };
+function note(id: string) {
+  return { id };
 }
 
-test("separated notes have zero overlap", () => {
-  assert.equal(noteOverlapRatio(rect("a", 0, 0), rect("b", 400, 0)), 0);
-});
-
-test("identical notes overlap fully", () => {
-  assert.equal(noteOverlapRatio(rect("a", 10, 10), rect("b", 10, 10)), 1);
-});
-
-test("partial overlap is intersection over the smaller area", () => {
-  const a = rect("a", 0, 0, 100, 100);
-  const b = rect("b", 50, 0, 100, 100);
-  assert.equal(noteOverlapRatio(a, b), 0.5);
-});
-
-test("empty-space drag still peels at the floor", () => {
-  const peels = peelByNoteId([rect("a", 0, 0), rect("b", 400, 0)], "a");
+test("dragged note peels at the floor over empty space", () => {
+  const peels = peelByNoteId([note("a"), note("b")], "a");
   assert.equal(peels.get("a"), DRAG_PEEL_FLOOR);
   assert.equal(peels.has("b"), false);
 });
 
-test("dragged note and covered neighbor both peel by overlap", () => {
-  const peels = peelByNoteId(
-    [rect("a", 0, 0, 100, 100), rect("b", 50, 0, 100, 100)],
-    "a",
-  );
-  assert.equal(peels.get("a"), 0.5);
-  assert.equal(peels.get("b"), 0.5);
+test("covered neighbors stay flat — contact does not peel", () => {
+  const peels = peelByNoteId([note("a"), note("b")], "a");
+  assert.equal(peels.get("a"), DRAG_PEEL_FLOOR);
+  assert.equal(peels.get("b"), undefined);
+  assert.equal(peels.size, 1);
 });
 
-test("overlap below the floor still peels the dragged note at the floor", () => {
-  const peels = peelByNoteId(
-    [rect("a", 0, 0, 100, 100), rect("b", 80, 0, 100, 100)],
-    "a",
-  );
-  assert.equal(peels.get("a"), 0.35);
-  assert.equal(peels.get("b"), 0.2);
+test("unknown dragging id peels nothing", () => {
+  const peels = peelByNoteId([note("a")], "missing");
+  assert.equal(peels.size, 0);
 });
 
 test("no peels when nothing is dragging", () => {
-  const peels = peelByNoteId([rect("a", 0, 0), rect("b", 10, 10)], null);
+  const peels = peelByNoteId([note("a"), note("b")], null);
   assert.equal(peels.size, 0);
 });
 
@@ -98,16 +70,6 @@ test("drag floor bites a small corner dog-ear", () => {
   assert.equal(
     floor.clipPath,
     "polygon(0px 0px, 191.5px 0px, 220px 28.5px, 220px 200px, 0px 200px)",
-  );
-});
-
-test("full peel bites further than the drag floor", () => {
-  const full = flapGeometry(1, 220, 200);
-  assert.equal(full.size, 48);
-  assert.equal(full.angle, 130);
-  assert.equal(
-    full.clipPath,
-    "polygon(0px 0px, 172px 0px, 220px 48px, 220px 200px, 0px 200px)",
   );
 });
 

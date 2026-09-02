@@ -1,5 +1,5 @@
 /**
- * Evidence checks for overlap-aware paper-flap peel.
+ * Evidence checks for drag-only paper-flap peel (no contact trigger).
  * Writes a human-readable report under tmp/ (gitignored).
  */
 import { spawnSync } from "node:child_process";
@@ -31,11 +31,12 @@ const canvas = read("src/components/board-canvas.tsx");
 const css = read("src/app/globals.css");
 
 record(
-  "overlap helper peels both the dragged note and covered neighbors",
-  /peels\.set\(other\.id, (?:clampPeel\()?ratio/.test(overlapLib) &&
-    /DRAG_PEEL_FLOOR/.test(overlapLib) &&
-    /peels\.set\(draggingId/.test(overlapLib),
-  "src/lib/note-overlap.ts must compute neighbor peel and a drag floor",
+  "only the dragged note peels; contact does not trigger a flap",
+  /DRAG_PEEL_FLOOR/.test(overlapLib) &&
+    /peels\.set\(draggingId/.test(overlapLib) &&
+    !/noteOverlapRatio/.test(overlapLib) &&
+    !/peels\.set\(other\.id/.test(overlapLib),
+  "src/lib/note-overlap.ts must peel only the dragged note at the drag floor",
 );
 
 const canvasWiresPeel =
@@ -77,7 +78,7 @@ const unit = spawnSync("npx", ["tsx", "tests/note-overlap.test.ts"], {
   encoding: "utf8",
 });
 record(
-  "overlap unit tests pass",
+  "drag-peel unit tests pass",
   unit.status === 0,
   unit.status === 0
     ? (unit.stdout || "ok").trim()
@@ -88,7 +89,7 @@ mkdirSync(resolve(root, "tmp"), { recursive: true });
 const passed = checks.filter((c) => c.passed).length;
 const failed = checks.filter((c) => !c.passed).length;
 const lines = [
-  "# Paper-flap overlap motion evidence",
+  "# Paper-flap drag motion evidence",
   "",
   `Checks: ${passed} passed, ${failed} failed`,
   "",

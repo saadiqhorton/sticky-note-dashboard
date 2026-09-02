@@ -24,7 +24,7 @@ type StickyNoteCardProps = {
   note: CanvasNote;
   selected?: boolean;
   dragging?: boolean;
-  /** 0–1 paper-flap peel from overlap (and a drag floor while moving). */
+  /** 0–1 paper-flap peel on the dragged Sticky Note. */
   peel?: number;
   hidden?: boolean;
   onPointerDown?: (event: React.PointerEvent, note: CanvasNote) => void;
