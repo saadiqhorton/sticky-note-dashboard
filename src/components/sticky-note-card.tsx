@@ -43,9 +43,8 @@ export function StickyNoteCard({
   onContextMenu,
 }: StickyNoteCardProps) {
   const peel = clampPeel(peelAmount);
-  const visualPeel = selected && peel === 0 ? 0.22 : peel;
-  const geo = flapGeometry(visualPeel, note.width, note.height);
-  const resting = visualPeel <= 0;
+  const geo = flapGeometry(peel, note.width, note.height);
+  const resting = peel <= 0;
   const tint = stickyColors[note.color];
 
   return (
@@ -99,7 +98,7 @@ export function StickyNoteCard({
           </p>
         ) : null}
       </div>
-      <PaperFlap peel={visualPeel} width={note.width} height={note.height} />
+      <PaperFlap peel={peel} width={note.width} height={note.height} />
     </div>
   );
 }

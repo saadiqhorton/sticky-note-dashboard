@@ -55,7 +55,7 @@ record(
 record(
   "sticky note maps peel to the paper fold and exposes data-peel",
   /<PaperFlap/.test(stickyNote) &&
-    /flapGeometry\(visualPeel/.test(stickyNote) &&
+    /flapGeometry\(peel/.test(stickyNote) &&
     /data-peel=\{peel\.toFixed\(2\)\}/.test(stickyNote),
   "sticky-note-card.tsx must clip the note face and draw the fold from peel",
 );
@@ -63,9 +63,9 @@ record(
 record(
   "fold is a corner dog-ear with reduced-motion jumps",
   /polygon\(0px 0px/.test(read("src/lib/paper-flap.ts")) &&
-    /paper-fold-back/.test(css) &&
+    /paper-fold-ear/.test(css) &&
     /sticky-note-face/.test(css) &&
-    /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*\.paper-fold,[\s\S]*transition:\s*none/.test(
+    /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*\.paper-fold-ear[\s\S]*transition:\s*none/.test(
       css,
     ),
   "flap must clip a triangular corner and skip motion when the user prefers reduced motion",

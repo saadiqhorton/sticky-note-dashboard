@@ -10,14 +10,20 @@ function qty(value: number, digits = 2): number {
   return Number(value.toFixed(digits));
 }
 
-/** Sharp top-right dog-ear. Size 0 leaves the note rectangular. */
+/**
+ * Top-right corner fold.
+ *
+ * Bite the corner off the note (clipPath). The folded paper is the
+ * reflection of that triangle across the crease, so it sits on the note
+ * body — not in the hole.
+ */
 export function flapGeometry(
   peel: number,
   width: number,
   height: number,
 ): FlapGeometry {
   const t = clampPeel(peel);
-  const size = t === 0 ? 0 : qty(12 + t * 20);
+  const size = t === 0 ? 0 : qty(18 + t * 18);
   return {
     size,
     opacity: t === 0 ? 0 : 1,
