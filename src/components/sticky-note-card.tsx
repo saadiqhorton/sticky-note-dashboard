@@ -1,8 +1,6 @@
 "use client";
 
 import { PaperFlap } from "@/components/paper-flap";
-import { clampPeel } from "@/lib/note-overlap";
-import { flapGeometry } from "@/lib/paper-flap";
 import { stickyColors, type StickyColorKey } from "@/lib/theme";
 
 export type CanvasNote = {
@@ -24,8 +22,6 @@ type StickyNoteCardProps = {
   note: CanvasNote;
   selected?: boolean;
   dragging?: boolean;
-  /** 0–1 paper-flap peel on the dragged Sticky Note. */
-  peel?: number;
   hidden?: boolean;
   onPointerDown?: (event: React.PointerEvent, note: CanvasNote) => void;
   onOpen?: (note: CanvasNote) => void;
@@ -36,14 +32,11 @@ export function StickyNoteCard({
   note,
   selected,
   dragging,
-  peel: peelAmount = 0,
   hidden,
   onPointerDown,
   onOpen,
   onContextMenu,
 }: StickyNoteCardProps) {
-  const peel = clampPeel(peelAmount);
-  const geo = flapGeometry(peel, note.width, note.height);
   const tint = stickyColors[note.color];
 
   return (
@@ -51,7 +44,7 @@ export function StickyNoteCard({
       role="button"
       tabIndex={0}
       data-note-id={note.id}
-      data-peel={peel.toFixed(2)}
+      data-dragging={dragging ? "true" : "false"}
       onPointerDown={(event) => onPointerDown?.(event, note)}
       onContextMenu={(event) => {
         event.preventDefault();
@@ -78,10 +71,7 @@ export function StickyNoteCard({
     >
       <div
         className="sticky-note-face absolute inset-0 rounded-sm p-4"
-        style={{
-          background: tint,
-          clipPath: geo.clipPath,
-        }}
+        style={{ background: tint }}
       >
         <p className="font-display text-lg leading-tight text-ink pointer-events-none">
           {note.title}
@@ -96,7 +86,7 @@ export function StickyNoteCard({
           </p>
         ) : null}
       </div>
-      <PaperFlap peel={peel} tint={tint} />
+      <PaperFlap tint={tint} />
     </div>
   );
 }

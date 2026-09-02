@@ -1,5 +1,3 @@
-import { clampPeel } from "@/lib/note-overlap";
-
 export const FOLD_SIZE = 22;
 export const LIFT_ANGLE = -28;
 
@@ -10,14 +8,17 @@ export type FlapGeometry = {
   clipPath: string;
 };
 
+export function clampPeel(n: number): number {
+  return Math.min(1, Math.max(0, n));
+}
+
 function qty(value: number, digits = 2): number {
   return Number(value.toFixed(digits));
 }
 
 /**
- * Top-right corner lift. Clip a small triangular bite, then hinge that
- * triangle toward the camera so the corner rises off the sheet — not a
- * dog-ear folded back onto it.
+ * Top-right corner lift geometry. The live flap is driven by CSS :hover;
+ * this helper keeps the clip polygon testable.
  */
 export function flapGeometry(
   peel: number,

@@ -3,18 +3,14 @@
 import { FOLD_SIZE } from "@/lib/paper-flap";
 
 type PaperFlapProps = {
-  peel: number;
   tint: string;
 };
 
-export function PaperFlap({ peel, tint }: PaperFlapProps) {
-  const lifted = peel > 0;
-
+export function PaperFlap({ tint }: PaperFlapProps) {
   return (
     <span
       aria-hidden
       className="paper-fold"
-      data-lifted={lifted ? "true" : "false"}
       style={
         {
           width: FOLD_SIZE,

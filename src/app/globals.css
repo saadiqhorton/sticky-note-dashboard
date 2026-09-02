@@ -15,6 +15,8 @@
   --background: var(--paper);
   --foreground: var(--ink);
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --fold-size: 22px;
+  --lift-angle: -28deg;
 }
 
 @theme inline {
@@ -70,10 +72,6 @@ body {
   transition: opacity 180ms var(--ease-out);
 }
 
-.paper-fold[data-lifted="true"] {
-  opacity: 1;
-}
-
 .paper-fold-ao,
 .paper-fold-edge,
 .paper-fold-arm,
@@ -100,10 +98,6 @@ body {
   transition: transform 180ms var(--ease-out);
 }
 
-.paper-fold[data-lifted="true"] .paper-fold-arm {
-  transform: rotate3d(1, 1, 0, -28deg);
-}
-
 .paper-fold-front {
   clip-path: polygon(0 0, 100% 0, 100% 100%);
   background:
@@ -124,7 +118,28 @@ body {
 }
 
 .sticky-note-face {
+  clip-path: polygon(0 0, 100% 0, 100% 0, 100% 100%, 0 100%);
   transition: clip-path 180ms var(--ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  [data-note-id]:hover:not([data-dragging="true"]) .sticky-note-face {
+    clip-path: polygon(
+      0 0,
+      calc(100% - var(--fold-size)) 0,
+      100% var(--fold-size),
+      100% 100%,
+      0 100%
+    );
+  }
+
+  [data-note-id]:hover:not([data-dragging="true"]) .paper-fold {
+    opacity: 1;
+  }
+
+  [data-note-id]:hover:not([data-dragging="true"]) .paper-fold-arm {
+    transform: rotate3d(1, 1, 0, var(--lift-angle));
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -138,7 +153,9 @@ body {
     transition-duration: 80ms;
   }
 
-  .paper-fold[data-lifted="true"] .paper-fold-arm {
-    transform: rotate3d(1, 1, 0, -12deg);
+  @media (hover: hover) and (pointer: fine) {
+    [data-note-id]:hover:not([data-dragging="true"]) .paper-fold-arm {
+      transform: rotate3d(1, 1, 0, -12deg);
+    }
   }
 }
