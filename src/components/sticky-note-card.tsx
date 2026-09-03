@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PaperFlap } from "@/components/paper-flap";
 import { stickyColors, type StickyColorKey } from "@/lib/theme";
 
