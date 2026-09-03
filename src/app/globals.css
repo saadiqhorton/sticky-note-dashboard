@@ -66,12 +66,12 @@ body {
   filter: drop-shadow(5px 10px 10px rgba(44, 36, 22, 0.26));
 }
 
-/* Focus ring follows the folded silhouette, not the element box. */
-[data-note-id] {
+/* Canvas cards only — list rows keep the default ring. */
+[data-note-id][data-lifted] {
   outline: none;
 }
 
-[data-note-id]:focus-visible .sticky-note-face {
+[data-note-id][data-lifted]:focus-visible .sticky-note-face {
   box-shadow: inset 0 0 0 2px rgba(44, 36, 22, 0.5);
 }
 
