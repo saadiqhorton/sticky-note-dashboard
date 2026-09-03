@@ -38,6 +38,7 @@ record(
 record(
   "sticky note lifts on pointer enter, not drag",
   /onPointerEnter/.test(stickyNote) &&
+    /onMouseEnter/.test(stickyNote) &&
     /data-lifted=\{lifted \? "true" : "false"\}/.test(stickyNote) &&
     /<PaperFlap/.test(stickyNote) &&
     !/peel=/.test(stickyNote),
@@ -45,11 +46,14 @@ record(
 );
 
 record(
-  "fold follows data-lifted, not a hover media query",
-  /\[data-lifted="true"\] \.paper-fold/.test(css) &&
+  "fold follows hover or data-lifted, not a hover media query",
+  /\[data-note-id\]:hover:not\(\[data-dragging="true"\]\) \.paper-fold/.test(
+    css,
+  ) &&
+    /\[data-lifted="true"\] \.paper-fold/.test(css) &&
     /\[data-lifted="true"\] \.paper-fold-arm/.test(css) &&
     !/@media \(hover: hover\)/.test(css),
-  "globals.css must lift the corner when data-lifted is true",
+  "globals.css must lift the corner on :hover and when data-lifted is true",
 );
 
 record(

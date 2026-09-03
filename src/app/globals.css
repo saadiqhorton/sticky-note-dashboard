@@ -122,6 +122,7 @@ body {
   transition: clip-path 180ms var(--ease-out);
 }
 
+[data-note-id]:hover:not([data-dragging="true"]) .sticky-note-face,
 [data-lifted="true"] .sticky-note-face {
   clip-path: polygon(
     0 0,
@@ -132,10 +133,12 @@ body {
   );
 }
 
+[data-note-id]:hover:not([data-dragging="true"]) .paper-fold,
 [data-lifted="true"] .paper-fold {
   opacity: 1;
 }
 
+[data-note-id]:hover:not([data-dragging="true"]) .paper-fold-arm,
 [data-lifted="true"] .paper-fold-arm {
   transform: rotate3d(1, 1, 0, var(--lift-angle));
 }
@@ -151,6 +154,7 @@ body {
     transition-duration: 80ms;
   }
 
+  [data-note-id]:hover:not([data-dragging="true"]) .paper-fold-arm,
   [data-lifted="true"] .paper-fold-arm {
     transform: rotate3d(1, 1, 0, -12deg);
   }

@@ -53,6 +53,8 @@ export function StickyNoteCard({
       data-note-id={note.id}
       data-dragging={dragging ? "true" : "false"}
       data-lifted={lifted ? "true" : "false"}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       onPointerEnter={() => setHovered(true)}
       onPointerLeave={() => setHovered(false)}
       onPointerDown={(event) => onPointerDown?.(event, note)}
