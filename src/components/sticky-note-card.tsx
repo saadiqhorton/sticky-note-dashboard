@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { PaperFlap } from "@/components/paper-flap";
 import { stickyColors, type StickyColorKey } from "@/lib/theme";
 
@@ -38,6 +39,12 @@ export function StickyNoteCard({
   onContextMenu,
 }: StickyNoteCardProps) {
   const tint = stickyColors[note.color];
+  const [hovered, setHovered] = useState(false);
+  const lifted = hovered && !dragging;
+
+  useEffect(() => {
+    if (dragging) setHovered(false);
+  }, [dragging]);
 
   return (
     <div
@@ -45,6 +52,9 @@ export function StickyNoteCard({
       tabIndex={0}
       data-note-id={note.id}
       data-dragging={dragging ? "true" : "false"}
+      data-lifted={lifted ? "true" : "false"}
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}
       onPointerDown={(event) => onPointerDown?.(event, note)}
       onContextMenu={(event) => {
         event.preventDefault();

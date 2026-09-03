@@ -28,7 +28,6 @@ function read(relPath) {
 const stickyNote = read("src/components/sticky-note-card.tsx");
 const canvas = read("src/components/board-canvas.tsx");
 const css = read("src/app/globals.css");
-const flap = read("src/components/paper-flap.tsx");
 
 record(
   "canvas does not peel notes while dragging",
@@ -37,20 +36,20 @@ record(
 );
 
 record(
-  "sticky note exposes dragging and draws the fold",
-  /data-dragging=\{dragging \? "true" : "false"\}/.test(stickyNote) &&
+  "sticky note lifts on pointer enter, not drag",
+  /onPointerEnter/.test(stickyNote) &&
+    /data-lifted=\{lifted \? "true" : "false"\}/.test(stickyNote) &&
     /<PaperFlap/.test(stickyNote) &&
     !/peel=/.test(stickyNote),
-  "sticky-note-card.tsx must mark dragging and not take a peel prop",
+  "sticky-note-card.tsx must set data-lifted from pointer enter and clear it while dragging",
 );
 
 record(
-  "fold lifts on hover, not while dragging",
-  /@media \(hover: hover\) and \(pointer: fine\)/.test(css) &&
-    /:hover:not\(\[data-dragging="true"\]\) \.paper-fold/.test(css) &&
-    /:hover:not\(\[data-dragging="true"\]\) \.paper-fold-arm/.test(css) &&
-    !/data-lifted/.test(flap),
-  "globals.css must lift the corner on fine-pointer hover and suppress it while dragging",
+  "fold follows data-lifted, not a hover media query",
+  /\[data-lifted="true"\] \.paper-fold/.test(css) &&
+    /\[data-lifted="true"\] \.paper-fold-arm/.test(css) &&
+    !/@media \(hover: hover\)/.test(css),
+  "globals.css must lift the corner when data-lifted is true",
 );
 
 record(

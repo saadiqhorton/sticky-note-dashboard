@@ -122,24 +122,22 @@ body {
   transition: clip-path 180ms var(--ease-out);
 }
 
-@media (hover: hover) and (pointer: fine) {
-  [data-note-id]:hover:not([data-dragging="true"]) .sticky-note-face {
-    clip-path: polygon(
-      0 0,
-      calc(100% - var(--fold-size)) 0,
-      100% var(--fold-size),
-      100% 100%,
-      0 100%
-    );
-  }
+[data-lifted="true"] .sticky-note-face {
+  clip-path: polygon(
+    0 0,
+    calc(100% - var(--fold-size)) 0,
+    100% var(--fold-size),
+    100% 100%,
+    0 100%
+  );
+}
 
-  [data-note-id]:hover:not([data-dragging="true"]) .paper-fold {
-    opacity: 1;
-  }
+[data-lifted="true"] .paper-fold {
+  opacity: 1;
+}
 
-  [data-note-id]:hover:not([data-dragging="true"]) .paper-fold-arm {
-    transform: rotate3d(1, 1, 0, var(--lift-angle));
-  }
+[data-lifted="true"] .paper-fold-arm {
+  transform: rotate3d(1, 1, 0, var(--lift-angle));
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -153,9 +151,7 @@ body {
     transition-duration: 80ms;
   }
 
-  @media (hover: hover) and (pointer: fine) {
-    [data-note-id]:hover:not([data-dragging="true"]) .paper-fold-arm {
-      transform: rotate3d(1, 1, 0, -12deg);
-    }
+  [data-lifted="true"] .paper-fold-arm {
+    transform: rotate3d(1, 1, 0, -12deg);
   }
 }
