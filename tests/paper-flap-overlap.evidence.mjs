@@ -37,7 +37,7 @@ record(
 
 record(
   "sticky note lifts on pointer enter, not drag",
-  /onPointerEnter/.test(stickyNote) &&
+  /onPointerOver/.test(stickyNote) &&
     /onMouseEnter/.test(stickyNote) &&
     /data-lifted=\{lifted \? "true" : "false"\}/.test(stickyNote) &&
     /<PaperFlap/.test(stickyNote) &&

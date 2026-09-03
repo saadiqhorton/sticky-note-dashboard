@@ -55,8 +55,12 @@ export function StickyNoteCard({
       data-lifted={lifted ? "true" : "false"}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      onPointerEnter={() => setHovered(true)}
-      onPointerLeave={() => setHovered(false)}
+      onPointerOver={() => setHovered(true)}
+      onPointerOut={(event) => {
+        const next = event.relatedTarget;
+        if (next instanceof Node && event.currentTarget.contains(next)) return;
+        setHovered(false);
+      }}
       onPointerDown={(event) => onPointerDown?.(event, note)}
       onContextMenu={(event) => {
         event.preventDefault();
