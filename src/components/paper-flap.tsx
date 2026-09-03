@@ -19,9 +19,10 @@ export function PaperFlap({ tint }: PaperFlapProps) {
         } as React.CSSProperties
       }
     >
-      <span className="paper-fold-well" />
+      <span className="paper-fold-crease" />
       <span className="paper-fold-arm">
         <span className="paper-fold-front" />
+        <span className="paper-fold-back" />
       </span>
     </span>
   );

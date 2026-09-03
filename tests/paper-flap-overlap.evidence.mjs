@@ -58,8 +58,10 @@ record(
 
 record(
   "reduced motion is gentler, not zero",
-  /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*-10deg/.test(css),
-  "reduced motion must keep a smaller lift",
+  /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*transition-duration: 80ms/.test(
+    css,
+  ),
+  "reduced motion must keep a faster fold, not skip it",
 );
 
 const unit = spawnSync("npx", ["tsx", "tests/note-overlap.test.ts"], {
