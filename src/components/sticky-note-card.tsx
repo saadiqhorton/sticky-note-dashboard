@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { PaperFlap } from "@/components/paper-flap";
 import { stickyColors, type StickyColorKey } from "@/lib/theme";
 
@@ -41,10 +41,6 @@ export function StickyNoteCard({
   const tint = stickyColors[note.color];
   const [hovered, setHovered] = useState(false);
   const lifted = hovered && !dragging;
-
-  useEffect(() => {
-    if (dragging) setHovered(false);
-  }, [dragging]);
 
   return (
     <div

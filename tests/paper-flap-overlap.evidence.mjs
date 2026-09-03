@@ -47,13 +47,10 @@ record(
 
 record(
   "fold follows hover or data-lifted, not a hover media query",
-  /\[data-note-id\]:hover:not\(\[data-dragging="true"\]\) \.paper-fold/.test(
-    css,
-  ) &&
-    /\[data-lifted="true"\] \.paper-fold/.test(css) &&
+  /\[data-lifted="true"\] \.paper-fold/.test(css) &&
     /\[data-lifted="true"\] \.paper-fold-arm/.test(css) &&
-    !/@media \(hover: hover\)/.test(css),
-  "globals.css must lift the corner on :hover and when data-lifted is true",
+    /@media \(hover: hover\) and \(pointer: fine\)/.test(css),
+  "globals.css must lift the corner when data-lifted is true; :hover is fine-pointer only",
 );
 
 record(
