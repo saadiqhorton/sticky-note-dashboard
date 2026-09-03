@@ -58,7 +58,7 @@ record(
 
 record(
   "reduced motion is gentler, not zero",
-  /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*-12deg/.test(css),
+  /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*-10deg/.test(css),
   "reduced motion must keep a smaller lift",
 );
 

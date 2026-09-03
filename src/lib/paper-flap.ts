@@ -1,5 +1,5 @@
-export const FOLD_SIZE = 22;
-export const LIFT_ANGLE = -28;
+export const FOLD_SIZE = 32;
+export const LIFT_ANGLE = -20;
 
 export type FlapGeometry = {
   size: number;
