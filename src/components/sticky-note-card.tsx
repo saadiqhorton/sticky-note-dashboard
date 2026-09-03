@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { PaperFlap } from "@/components/paper-flap";
 import { stickyColors, type StickyColorKey } from "@/lib/theme";
 
@@ -70,7 +70,9 @@ export function StickyNoteCard({
         }
       }}
       className={`absolute origin-center overflow-visible rounded-sm text-left transition-opacity select-none ${
-        dragging ? "sticky-shadow-lifted cursor-grabbing" : "sticky-shadow cursor-grab"
+        dragging
+          ? "sticky-note-shadow-lifted cursor-grabbing"
+          : "sticky-note-shadow cursor-grab"
       } ${selected ? "ring-2 ring-ink/40" : ""} ${hidden ? "opacity-0 pointer-events-none" : "opacity-100"}`}
       style={{
         left: note.x,

@@ -58,6 +58,23 @@ body {
     8px 20px 32px rgba(44, 36, 22, 0.22);
 }
 
+.sticky-note-shadow {
+  filter: drop-shadow(2px 4px 5px rgba(44, 36, 22, 0.16));
+}
+
+.sticky-note-shadow-lifted {
+  filter: drop-shadow(5px 10px 10px rgba(44, 36, 22, 0.26));
+}
+
+/* Focus ring follows the folded silhouette, not the element box. */
+[data-note-id] {
+  outline: none;
+}
+
+[data-note-id]:focus-visible .sticky-note-face {
+  box-shadow: inset 0 0 0 2px rgba(44, 36, 22, 0.5);
+}
+
 .paper-fold {
   pointer-events: none;
   position: absolute;
