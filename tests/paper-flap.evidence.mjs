@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 const root = resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
 const EVIDENCE_PATH =
   process.env.PAPER_FLAP_OVERLAP_EVIDENCE_PATH ??
-  resolve(root, "tmp/paper-flap-overlap-evidence.md");
+  resolve(root, "tmp/paper-flap-evidence.md");
 
 /** @type {{ name: string, passed: boolean, detail: string }[]} */
 const checks = [];
@@ -46,6 +46,12 @@ record(
 );
 
 record(
+  "the flap lib ships no unused peel engine",
+  !/flapGeometry|clampPeel|FlapGeometry/.test(read("src/lib/paper-flap.ts")),
+  "src/lib/paper-flap.ts must not export geometry helpers with no production caller",
+);
+
+record(
   "fold follows hover or data-lifted, not a hover media query",
   /\[data-lifted="true"\] \.paper-fold/.test(css) &&
     /paper-fold-curl/.test(read("src/components/paper-flap.tsx")) &&
@@ -61,12 +67,12 @@ record(
   "reduced motion must keep a faster fold, not skip it",
 );
 
-const unit = spawnSync("npx", ["tsx", "tests/note-overlap.test.ts"], {
+const unit = spawnSync("npx", ["tsx", "tests/paper-flap.test.ts"], {
   cwd: root,
   encoding: "utf8",
 });
 record(
-  "flap geometry unit tests pass",
+  "fold tint unit tests pass",
   unit.status === 0,
   unit.status === 0
     ? (unit.stdout || "ok").trim()

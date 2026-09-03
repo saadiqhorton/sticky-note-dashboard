@@ -80,7 +80,7 @@ export function StickyNoteCard({
         width: note.width,
         height: note.height,
         zIndex: dragging ? 9999 : note.zIndex,
-        transform: `rotate(${note.rotation}deg)`,
+        transform: `rotate(${dragging ? note.rotation - 4 : note.rotation}deg)`,
       }}
     >
       <div
