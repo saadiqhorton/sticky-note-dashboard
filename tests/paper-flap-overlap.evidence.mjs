@@ -48,9 +48,10 @@ record(
 record(
   "fold follows hover or data-lifted, not a hover media query",
   /\[data-lifted="true"\] \.paper-fold/.test(css) &&
-    /\[data-lifted="true"\] \.paper-fold-arm/.test(css) &&
-    /@media \(hover: hover\) and \(pointer: fine\)/.test(css),
-  "globals.css must lift the corner when data-lifted is true; :hover is fine-pointer only",
+    /paper-fold-curl/.test(read("src/components/paper-flap.tsx")) &&
+    !/clip-path: polygon\(/.test(read("src/components/sticky-note-card.tsx")) &&
+    !/\.sticky-note-face \{[\s\S]*clip-path/.test(css),
+  "curl is an overlay; the note face is never bitten",
 );
 
 record(

@@ -15,9 +15,7 @@
   --background: var(--paper);
   --foreground: var(--ink);
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-  --fold-size: 20px;
-  --lift-angle: 168deg;
-  --fold-back: #f6edd4;
+  --fold-size: 44px;
 }
 
 @theme inline {
@@ -66,96 +64,25 @@ body {
   right: 0;
   top: 0;
   z-index: 4;
+  overflow: visible;
   opacity: 0;
-  perspective: 200px;
-  perspective-origin: 0% 0%;
-  transform-style: preserve-3d;
-  transition: opacity 180ms var(--ease-out);
-}
-
-.paper-fold-crease,
-.paper-fold-arm,
-.paper-fold-front,
-.paper-fold-back {
-  position: absolute;
-  inset: 0;
-}
-
-.paper-fold-crease {
-  clip-path: polygon(0 0, 100% 100%, 0 100%);
-  background: linear-gradient(
-    45deg,
-    transparent 46%,
-    rgba(44, 36, 22, 0.16) 50%,
-    transparent 55%
-  );
-}
-
-.paper-fold-arm {
-  transform: rotate3d(1, 1, 0, 0deg);
-  transform-origin: 0% 0%;
-  transform-style: preserve-3d;
-  transition: transform 180ms var(--ease-out);
-}
-
-.paper-fold-front,
-.paper-fold-back {
-  clip-path: polygon(0 0, 100% 0, 100% 100%);
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-}
-
-.paper-fold-front {
-  background: var(--fold-tint);
-}
-
-.paper-fold-back {
-  background:
-    linear-gradient(225deg, #fffefb 0%, var(--fold-back) 58%, #e7d5a8 100%);
-  transform: rotate3d(1, 1, 0, 180deg);
-  filter: drop-shadow(-2px 3px 2px rgba(44, 36, 22, 0.22));
-}
-
-.sticky-note-face {
-  clip-path: polygon(0 0, 100% 0, 100% 0, 100% 100%, 0 100%);
-  transition: clip-path 180ms var(--ease-out);
-}
-
-[data-lifted="true"] .sticky-note-face {
-  clip-path: polygon(
-    0 0,
-    calc(100% - var(--fold-size)) 0,
-    100% var(--fold-size),
-    100% 100%,
-    0 100%
-  );
+  transform-origin: 100% 0%;
+  transform: rotate(-8deg) translate3d(3px, -2px, 0);
+  filter: drop-shadow(-5px 7px 6px rgba(44, 36, 22, 0.24));
+  transition:
+    opacity 180ms var(--ease-out),
+    transform 180ms var(--ease-out);
 }
 
 [data-lifted="true"] .paper-fold {
   opacity: 1;
-}
-
-[data-lifted="true"] .paper-fold-arm {
-  transform: rotate3d(1, 1, 0, var(--lift-angle));
+  transform: rotate(-2deg) translate3d(0, 0, 0);
 }
 
 @media (hover: hover) and (pointer: fine) {
-  [data-note-id]:hover:not([data-dragging="true"]) .sticky-note-face {
-    clip-path: polygon(
-      0 0,
-      calc(100% - var(--fold-size)) 0,
-      100% var(--fold-size),
-      100% 100%,
-      0 100%
-    );
-  }
-
   [data-note-id]:hover:not([data-dragging="true"]) .paper-fold {
     opacity: 1;
-  }
-
-  [data-note-id]:hover:not([data-dragging="true"]) .paper-fold-arm {
-    transform: rotate3d(1, 1, 0, var(--lift-angle));
+    transform: rotate(-2deg) translate3d(0, 0, 0);
   }
 }
 
@@ -164,9 +91,7 @@ body {
     transition: none !important;
   }
 
-  .paper-fold,
-  .paper-fold-arm,
-  .sticky-note-face {
+  .paper-fold {
     transition-duration: 80ms;
   }
 }
