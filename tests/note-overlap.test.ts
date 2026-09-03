@@ -24,7 +24,7 @@ test("clampPeel keeps values in 0–1", () => {
   assert.equal(clampPeel(1.8), 1);
 });
 
-test("resting overlay does not bite the note", () => {
+test("resting note keeps a square corner", () => {
   const rest = flapGeometry(0, 220, 200);
   assert.equal(rest.size, 0);
   assert.equal(rest.opacity, 0);
@@ -34,13 +34,13 @@ test("resting overlay does not bite the note", () => {
   );
 });
 
-test("lifted overlay keeps the note face intact", () => {
+test("lifted dog-ear removes the corner from the sheet", () => {
   const lifted = flapGeometry(1, 220, 200);
   assert.equal(lifted.size, FOLD_SIZE);
   assert.equal(lifted.opacity, 1);
   assert.equal(
     lifted.clipPath,
-    "polygon(0px 0px, 220px 0px, 220px 0px, 220px 200px, 0px 200px)",
+    `polygon(0px 0px, ${220 - FOLD_SIZE}px 0px, 220px ${FOLD_SIZE}px, 220px 200px, 0px 200px)`,
   );
 });
 

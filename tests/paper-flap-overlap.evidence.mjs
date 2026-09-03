@@ -49,9 +49,8 @@ record(
   "fold follows hover or data-lifted, not a hover media query",
   /\[data-lifted="true"\] \.paper-fold/.test(css) &&
     /paper-fold-curl/.test(read("src/components/paper-flap.tsx")) &&
-    !/clip-path: polygon\(/.test(read("src/components/sticky-note-card.tsx")) &&
-    !/\.sticky-note-face \{[\s\S]*clip-path/.test(css),
-  "curl is an overlay; the note face is never bitten",
+    /\[data-lifted="true"\] \.sticky-note-face/.test(css),
+  "hover must fold the corner away and lay the flap on the note",
 );
 
 record(

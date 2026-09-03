@@ -9,13 +9,8 @@ type PaperFlapProps = {
 
 export function PaperFlap({ tint }: PaperFlapProps) {
   const uid = useId().replace(/:/g, "");
-  const paper = `paper-${uid}`;
-  const shade = `shade-${uid}`;
-  const crease = `crease-${uid}`;
-  const blur = `blur-${uid}`;
-  const highlight = mixWhite(tint, 0.42);
-  const mid = mixWhite(tint, 0.08);
-  const deep = mixInk(tint, 0.22);
+  const under = `flap-under-${uid}`;
+  const soften = `flap-blur-${uid}`;
 
   return (
     <svg
@@ -23,74 +18,38 @@ export function PaperFlap({ tint }: PaperFlapProps) {
       className="paper-fold"
       width={FOLD_SIZE}
       height={FOLD_SIZE}
-      viewBox="0 0 48 48"
+      viewBox="0 0 40 40"
       fill="none"
     >
       <defs>
         <linearGradient
-          id={shade}
-          x1="10"
-          y1="8"
-          x2="42"
-          y2="42"
+          id={under}
+          x1="38"
+          y1="2"
+          x2="2"
+          y2="38"
           gradientUnits="userSpaceOnUse"
         >
-          <stop offset="0" stopColor="#2c2416" stopOpacity="0" />
-          <stop offset="0.4" stopColor="#2c2416" stopOpacity="0.3" />
-          <stop offset="1" stopColor="#2c2416" stopOpacity="0" />
+          <stop offset="0" stopColor={mixWhite(tint, 0.8)} />
+          <stop offset="0.5" stopColor={mixWhite(tint, 0.1)} />
+          <stop offset="1" stopColor={mixInk(tint, 0.28)} />
         </linearGradient>
-        <linearGradient
-          id={paper}
-          x1="48"
-          y1="0"
-          x2="6"
-          y2="40"
-          gradientUnits="userSpaceOnUse"
-        >
-          <stop offset="0" stopColor={highlight} />
-          <stop offset="0.24" stopColor={mid} />
-          <stop offset="0.58" stopColor={tint} />
-          <stop offset="1" stopColor={deep} />
-        </linearGradient>
-        <linearGradient
-          id={crease}
-          x1="0"
-          y1="0"
-          x2="48"
-          y2="48"
-          gradientUnits="userSpaceOnUse"
-        >
-          <stop offset="0.35" stopColor="#fffef8" stopOpacity="0" />
-          <stop offset="0.48" stopColor="#fffef8" stopOpacity="0.55" />
-          <stop offset="0.52" stopColor="#2c2416" stopOpacity="0.28" />
-          <stop offset="0.7" stopColor="#2c2416" stopOpacity="0" />
-        </linearGradient>
-        <filter
-          id={blur}
-          x="-50%"
-          y="-50%"
-          width="200%"
-          height="200%"
-        >
-          <feGaussianBlur stdDeviation="1.8" />
+        <filter id={soften} x="-70%" y="-70%" width="240%" height="240%">
+          <feGaussianBlur stdDeviation="2" />
         </filter>
       </defs>
       <path
-        d="M8 0C20 14 32 28 48 46L48 48L0 48L0 0Z"
-        fill={`url(#${shade})`}
-        filter={`url(#${blur})`}
+        d="M0 2 C 16 16 28 28 38 40 L0 40 Z"
+        fill="#2c2416"
+        opacity="0.32"
+        filter={`url(#${soften})`}
       />
       <path
         className="paper-fold-curl"
-        d="M1.2 1.4C17 0.2 36.5 1.8 46.8 11.2C47.8 22 47.6 35 46.5 46.6C33.5 39 17.5 21.5 1.2 1.4Z"
-        fill={`url(#${paper})`}
+        d="M0 0 L40 40 C 22 37 8 28 0 8 Z"
+        fill={`url(#${under})`}
       />
-      <path
-        d="M5 3C18 15 32 31 45 45"
-        stroke={`url(#${crease})`}
-        strokeWidth="1.4"
-        strokeLinecap="round"
-      />
+      <path d="M0 0 L40 40" stroke="#ffffff" strokeOpacity="0.45" strokeWidth="0.9" />
     </svg>
   );
 }
