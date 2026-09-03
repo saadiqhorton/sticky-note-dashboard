@@ -132,7 +132,13 @@ body {
     transition: none !important;
   }
 
+  /* Fade the fold in place — no scaling movement. */
   .paper-fold {
+    transform: scale(1);
+  }
+
+  .paper-fold,
+  .sticky-note-face {
     transition-duration: 80ms;
   }
 }

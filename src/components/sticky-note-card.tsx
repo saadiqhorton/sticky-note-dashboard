@@ -69,7 +69,7 @@ export function StickyNoteCard({
           onOpen?.(note);
         }
       }}
-      className={`absolute origin-center overflow-visible rounded-sm text-left transition-opacity select-none ${
+      className={`absolute origin-center overflow-visible text-left transition-opacity select-none ${
         dragging
           ? "sticky-note-shadow-lifted cursor-grabbing"
           : "sticky-note-shadow cursor-grab"
@@ -84,7 +84,7 @@ export function StickyNoteCard({
       }}
     >
       <div
-        className="sticky-note-face absolute inset-0 rounded-sm p-4"
+        className="sticky-note-face absolute inset-0 p-4"
         style={{ background: tint }}
       >
         <p className="font-display text-lg leading-tight text-ink pointer-events-none">
