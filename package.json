@@ -22,7 +22,11 @@
     "test:purge-note-trashed-only": "node tests/purge-note-trashed-only.test.mjs",
     "test:block-writes-trashed-notes": "node tests/block-writes-trashed-notes.test.mjs",
     "test:unique-company-board": "node tests/unique-company-board.test.mjs",
-    "test:unique-company-board-integration": "tsx tests/unique-company-board.integration.mjs"
+    "test:unique-company-board-integration": "tsx tests/unique-company-board.integration.mjs",
+    "test:paper-flap": "tsx tests/paper-flap.test.ts",
+    "test:note-overlap": "tsx tests/paper-flap.test.ts",
+    "test:paper-flap-evidence": "node tests/paper-flap.evidence.mjs",
+    "test:paper-flap-overlap-evidence": "node tests/paper-flap.evidence.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
