@@ -16,7 +16,7 @@ jobs:
         uses: SonarSource/sonarqube-scan-action@v7
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: http://177.7.36.102:9000
+          SONAR_HOST_URL: https://sonarqube.dezignerdrugz.com
         with:
           args: >
             -Dsonar.projectKey=saadiqhorton_sticky-note-dashboard_b1335c4a-da07-40a8-a308-e736670dcfda
